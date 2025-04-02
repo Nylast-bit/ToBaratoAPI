@@ -31,4 +31,13 @@ def crear_producto(productoParam: ProductoCreate, db: Session = Depends(get_db))
     db.commit()
     db.refresh(nuevo_producto)
     return nuevo_producto
+
+
+# Obtener todos los productos   
+@router.get("/producto", response_model=List[ProductoResponse])
+def obtener_productos(db: Session = Depends(get_db)):
+    productos = db.query(Producto).all()
+    if not productos:
+        raise HTTPException(status_code=404, detail="No se encontraron productos")
+    return productos
         

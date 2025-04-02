@@ -60,4 +60,11 @@ def crear_proveedor(proveedorParam: ProveedorCreate, db: Session = Depends(get_d
             }
         )
 
-        
+
+
+#Obtener todos los proveedores
+@router.get("/proveedor", response_model=List[ProveedorResponse])
+def obtener_proveedores(db: Session = Depends(get_db)):
+    proveedores = db.query(Proveedor).all()
+    return proveedores
+

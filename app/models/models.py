@@ -137,7 +137,7 @@ class ProductoProveedor(Base):
     IdProveedor = Column(Integer, ForeignKey('Proveedor.IdProveedor'), primary_key=True)
     Precio = Column(Numeric(10, 2), nullable=False)
     PrecioOferta = Column(Numeric(10, 2), nullable=True)
-    DescripcionOferta = Column(String(200), nullable=True)
+    DescripcionOferta = Column(String(200), nullable=True, default="No habia oferta")
     FechaOferta = Column(DateTime, nullable=False)
     FechaPrecio = Column(DateTime, nullable=False)
     
