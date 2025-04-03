@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException, Depends, status
 from sqlalchemy.orm import Session
 from typing import List, Annotated
 from app.models.models import TipoUsuario
@@ -20,13 +20,45 @@ db_dependency = Annotated[Session, Depends(get_db)]
 #Crear un nuevo tipo de usuario
 @router.post("/tipousuario", response_model=TipoUsuarioResponse)
 def crear_tipo_usuario(tipoUsuarioParam: TipoUsuarioCreate, db: Session = Depends(get_db)):
-    nuevo_tipo = TipoUsuario(
-        NombreTipoUsuario =tipoUsuarioParam.NombreTipoUsuario  # ← Usa el nombre correcto
-    )
-    db.add(nuevo_tipo)
-    db.commit()
-    db.refresh(nuevo_tipo)
-    return nuevo_tipo
+    try:
+        # Validar que el nombre no sea numérico
+        if tipoUsuarioParam.NombreTipoUsuario.isdigit():
+            raise ValueError("El nombre no puede ser un valor numérico")
+        
+        # Validar que no esté vacío
+        if not tipoUsuarioParam.NombreTipoUsuario.strip():
+            raise ValueError("El nombre no puede estar vacío")
+        
+        nuevo_tipo = TipoUsuario(
+            NombreTipoUsuario=tipoUsuarioParam.NombreTipoUsuario.strip().title()  # Limpieza básica
+        )
+        
+        db.add(nuevo_tipo)
+        db.commit()
+        db.refresh(nuevo_tipo)
+        return nuevo_tipo
+        
+    except ValueError as ve:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={
+                "error": "Error de validación",
+                "message": str(ve),
+                "field": "NombreTipoUsuario",
+                "received_value": tipoUsuarioParam.NombreTipoUsuario
+            }
+        )
+        
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail={
+                "error": "Error interno al crear tipo de usuario",
+                "message": str(e)
+            }
+        )
 
 
 #Obtener todos los tipos de usuarioss

@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 from typing import List, Annotated
 from app.models.models import Lista, Usuario, Proveedor
 from app.database import SessionLocal
-from app.schemas.lista import ListaCreate, ListaResponse
+from app.schemas.lista import ListaCreate, ListaResponse, ListaUpdate
 
 
 router = APIRouter()
@@ -84,4 +84,67 @@ def obtener_listas(db: Session = Depends(get_db)):
     listas = db.query(Lista).all()
     return listas
 
-#
+#Obtener una lista por su id  
+@router.get("/lista/{id}", response_model=ListaResponse)        
+def obtener_lista_por_id(id: int, db: Session = Depends(get_db)):
+    lista = db.query(Lista).filter(Lista.IdLista == id).first()
+    if lista is None:
+        raise HTTPException(status_code=404, detail="No existe la lista") 
+    return lista
+
+#Actualizar una lista por su id
+@router.put("/lista/{id}", response_model=ListaResponse)
+def actualizar_lista(id: int, listaParam: ListaUpdate, db: Session = Depends(get_db)):
+    lista = db.query(Lista).filter(Lista.IdLista == id).first()
+    if not lista:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={"error": "Lista no encontrada", "id": id}
+        )
+    
+    try:
+        update_data = listaParam.model_dump(exclude_unset=True)
+        
+        # Validaciones
+        if "IdUsuario" in update_data:
+            if not db.query(Usuario).get(update_data["IdUsuario"]):
+                raise ValueError("El usuario especificado no existe")
+        
+        if "IdProveedor" in update_data:
+            if not db.query(Proveedor).get(update_data["IdProveedor"]):
+                raise ValueError("El proveedor especificado no existe")
+        
+        if "PrecioTotal" in update_data and update_data["PrecioTotal"] < 0:
+            raise ValueError("El precio total no puede ser negativo")
+        
+        # Actualización
+        for field, value in update_data.items():
+            setattr(lista, field, value)
+        
+        db.commit()
+        db.refresh(lista)
+        return lista
+        
+    except ValueError as ve:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={"error": "Error de validación", "message": str(ve)}
+        )
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail={"error": "Error al actualizar lista", "details": str(e)}
+        )
+    
+#Eliminar una lista por su id
+@router.delete("/lista/{id}", response_model=ListaResponse)
+def eliminar_lista(id: int, db: Session = Depends(get_db)):
+    lista = db.query(Lista).filter(Lista.IdLista == id).first()
+    if lista is None:
+        raise HTTPException(status_code=404, detail="No existe la lista")
+
+    db.delete(lista)
+    db.commit()    
+    return lista  # ← Devuelve el objeto antes de eliminarlo en la sesión

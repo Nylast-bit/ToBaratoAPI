@@ -1,9 +1,9 @@
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException, Depends, status
 from sqlalchemy.orm import Session
 from typing import List, Annotated
-from app.models.models import Producto
+from app.models.models import Producto, Categoria, UnidadMedida
 from app.database import SessionLocal
-from app.schemas.producto import ProductoCreate, ProductoResponse
+from app.schemas.producto import ProductoCreate, ProductoResponse, ProductoUpdate
 
 
 router = APIRouter()
@@ -40,4 +40,76 @@ def obtener_productos(db: Session = Depends(get_db)):
     if not productos:
         raise HTTPException(status_code=404, detail="No se encontraron productos")
     return productos
+
+# Obtener un producto por su id
+@router.get("/producto/{id}", response_model=ProductoResponse)
+def obtener_producto_por_id(id: int, db: Session = Depends(get_db)):
+    producto = db.query(Producto).filter(Producto.IdProducto == id).first()
+    if producto is None:
+        raise HTTPException(status_code=404, detail="No existe el producto")
+    return producto
+
+# Actualizar un producto
+@router.put("/producto/{id}", response_model=ProductoResponse)
+def actualizar_producto(id: int, productoParam: ProductoUpdate, db: Session = Depends(get_db)):
+    # 1. Obtener producto existente
+    producto = db.query(Producto).filter(Producto.IdProducto == id).first()
+    if not producto:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={"error": "Producto no encontrado", "id": id}
+        )
+    
+    try:
+        # 2. Obtener solo los campos proporcionados
+        update_data = productoParam.model_dump(exclude_unset=True)
         
+        # 3. Validaciones específicas
+        if "IdCategoria" in update_data:
+            if not db.query(Categoria).get(update_data["IdCategoria"]):
+                raise ValueError("La categoría especificada no existe")
+        
+        if "IdUnidadMedida" in update_data:
+            if not db.query(UnidadMedida).get(update_data["IdUnidadMedida"]):
+                raise ValueError("La unidad de medida especificada no existe")
+        
+        
+        # 4. Aplicar actualizaciones
+        for field, value in update_data.items():
+            setattr(producto, field, value)
+        
+        db.commit()
+        db.refresh(producto)
+        return producto
+        
+    except ValueError as ve:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={
+                "error": "Error de validación",
+                "message": str(ve),
+                "field": ve.field if hasattr(ve, 'field') else None
+            }
+        )
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail={
+                "error": "Error al actualizar producto",
+                "details": str(e)
+            }
+        )
+    
+# Eliminar un producto
+@router.delete("/producto/{id}", response_model=ProductoResponse)
+def eliminar_producto(id: int, db: Session = Depends(get_db)):
+    producto = db.query(Producto).filter(Producto.IdProducto == id).first()
+    if producto is None:
+        raise HTTPException(status_code=404, detail="No existe el producto")
+
+    db.delete(producto)
+    db.commit()
+    
+    return producto  # ← Devuelve el objeto antes de eliminarlo en la sesión

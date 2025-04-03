@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 from typing import List, Annotated
 from app.models.models import Usuario, TipoUsuario
 from app.database import SessionLocal
-from app.schemas.usuario import UsuarioCreate, UsuarioResponse
+from app.schemas.usuario import UsuarioCreate, UsuarioResponse, UsuarioUpdate
 from passlib.context import CryptContext
 
 
@@ -94,25 +94,68 @@ def obtener_unidadmedida_por_id(id: int, db: Session = Depends(get_db)):
     return usuario
 
 
-#Actualizar una unidad de medida
+#Actualizar un usuario
 @router.put("/usuario/{id}", response_model=UsuarioResponse)
-def actualizar_unidadmedida(id: int, usuarioParam: UsuarioCreate, db: Session = Depends(get_db)):
+def actualizar_usuario(id: int, usuarioParam: UsuarioUpdate, db: Session = Depends(get_db)):
+    # 1. Obtener usuario existente
+    usuario = db.query(Usuario).filter(Usuario.IdUsuario == id).first()
+    if not usuario:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={"error": "Usuario no encontrado", "id": id}
+        )
+    
+    try:
+        # 2. Obtener solo los campos proporcionados (ignorar None)
+        update_data = usuarioParam.model_dump(exclude_unset=True)
+        
+        
+        if "Correo" in update_data:
+            # Validar que el correo no esté en uso por otro usuario
+            if db.query(Usuario).filter(
+                Usuario.Correo == update_data["Correo"],
+                Usuario.IdUsuario != id
+            ).first():
+                raise ValueError("El correo ya está registrado por otro usuario")
+        
+        if "Telefono" in update_data:
+            # Validar formato de teléfono
+            if not update_data["Telefono"].isdigit():
+                raise ValueError("El teléfono debe contener solo números")
+        
+        # 4. Aplicar actualizaciones
+        for field, value in update_data.items():
+            setattr(usuario, field, value)
+        
+        db.commit()
+        db.refresh(usuario)
+        return usuario
+        
+    except ValueError as ve:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={"error": "Error de validación", "message": str(ve)}
+        )
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail={"error": "Error al actualizar usuario", "details": str(e)}
+        )
+
+
+#Eliminar un usuario
+@router.delete("/usuario/{id}", response_model=UsuarioResponse)
+def eliminar_usuario(id: int, db: Session = Depends(get_db)):
     usuario = db.query(Usuario).filter(Usuario.IdUsuario == id).first()
     if usuario is None:
-        raise HTTPException(status_code=404, detail="No existe esa unidad de medida")
-    IdTipoUsuario=usuario.IdTipoUsuario,
-    NombreUsuario=usuario.NombreUsuario,
-    Correo=usuario.Correo,
-    Telefono=usuario.Telefono,
-    Clave=hash_password(usuario.Clave),  # Asegúrate de hashear la contraseña
-    Nombres=usuario.Nombres,
-    Apellidos=usuario.Apellidos,
-    Estado=usuario.Estado,
-    FechaNacimiento=usuario.FechaNacimiento,
-    UrlPerfil=usuario.UrlPerfil,  # ← Usa el nombre correcto
+        raise HTTPException(status_code=404, detail="No existe ese usuario")
+
+    db.delete(usuario)
     db.commit()
-    db.refresh(usuario)
-    return usuario
+    
+    return usuario  # ← Devuelve el objeto antes de eliminarlo en la sesión
 
 
 #Hashar la contraseña

@@ -1,6 +1,8 @@
 from pydantic import BaseModel
 from datetime import datetime
 from pydantic import BaseModel, EmailStr, constr, Field
+from typing import Optional
+
 
 class UsuarioBase(BaseModel):
     IdTipoUsuario: int = Field(..., alias="IdTipoUsuario") # ← Debe coincidir con el modelo SQLAlchemy
@@ -20,9 +22,23 @@ class UsuarioCreate(UsuarioBase):
     Estado: bool = True
     pass
 
+
+class UsuarioUpdate(BaseModel):
+    IdTipoUsuario: Optional[int] = Field(None, alias="IdTipoUsuario")
+    NombreUsuario: Optional[str] = Field(None, alias="NombreUsuario")
+    Correo: Optional[EmailStr] = Field(None, alias="Correo")
+    Telefono: Optional[str] = Field(None, alias="Telefono")
+    Nombres: Optional[str] = Field(None, alias="Nombres")
+    Apellidos: Optional[str] = Field(None, alias="Apellidos")
+    Estado: Optional[bool] = Field(None, alias="Estado")
+    UrlPerfil: Optional[str] = Field(None, alias="UrlPerfil")
+    FechaNacimiento: Optional[datetime] = Field(None, alias="FechaNacimiento")
+
 class UsuarioResponse(UsuarioBase):
     IdUsuario: int  # ← Nombre exacto como en el modelo
     FechaCreacion: datetime
 
     class Config:
         from_attributes = True
+
+

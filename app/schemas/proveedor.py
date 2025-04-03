@@ -12,6 +12,13 @@ class ProveedorBase(BaseModel):
 class ProveedorCreate(ProveedorBase):
     pass
 
+class ProveedorUpdate(BaseModel):
+    IdTipoProveedor: Optional[int] = Field(None, alias="IdTipoProveedor")
+    Nombre: Optional[str] = Field(None, max_length=100,alias="Nombre")
+    UrlLogo: Optional[str] = Field(max_length=300, alias="UrlLogo")
+    UrlPaginaWeb: Optional[str] = Field(max_length=300,alias="UrlPaginaWeb")
+    EnvioDomicilio: Optional[bool] = Field(alias="EnvioDomicilio" )
+
 class ProveedorResponse(ProveedorBase):
     IdProveedor: int 
     FechaCreacion: datetime 
