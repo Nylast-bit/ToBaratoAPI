@@ -1,0 +1,5 @@
+pydantic
+sqlalchemy
+python-dotenv
+FastAPI
+psycopg2-binary
