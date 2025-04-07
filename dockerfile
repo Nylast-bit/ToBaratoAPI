@@ -8,13 +8,14 @@ WORKDIR /app
 COPY requirements.txt .
 
 # Instala las dependencias
-RUN pip install --no-cache-dir -r requirements.txt
+# RUN pip install --no-cache-dir -r requirements.txt
+RUN echo "nameserver 8.8.8.8" > /etc/resolv.conf && pip install --no-cache-dir -r requirements.txt
 
 # Copia el resto del código de la aplicación
 COPY . .
 
 # Expone el puerto en el que correrá la aplicación
-EXPOSE 8888
+EXPOSE 8081
 
 # Comando para ejecutar la aplicación
 CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8081", "--reload"]
