@@ -45,6 +45,17 @@ def obtener_productoproveedor(db: Session = Depends(get_db)):
     return productoproveedor
 
 
+# Obtener un productoproveedor por ID    
+@router.get("/productos/{id_producto}/proveedores/{id_proveedor}", response_model=ProductoProveedorResponse)
+def obtener_productoproveedor_por_id(id_producto: int, id_proveedor: int, db: Session = Depends(get_db)):
+    productoproveedor = db.query(ProductoProveedor).filter(
+        ProductoProveedor.IdProducto == id_producto,
+        ProductoProveedor.IdProveedor == id_proveedor
+    ).first()
+    if not productoproveedor:
+        raise HTTPException(status_code=404, detail="No se encontraron productos")
+    return productoproveedor
+
 #actualizar un productoproveedor
 @router.put("/productos/{id_producto}/proveedores/{id_proveedor}", response_model=ProductoProveedorResponse)
 def actualizar_producto_proveedor(

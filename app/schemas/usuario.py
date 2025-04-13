@@ -13,7 +13,7 @@ class UsuarioBase(BaseModel):
     Nombres: str = Field(..., alias="Nombres")
     Apellidos: str = Field(..., alias="Apellidos")
     Estado: bool = Field(..., alias="Estado")
-    UrlPerfil: str = Field(..., alias="UrlPerfil")
+    UrlPerfil: Optional[str] = Field(None, alias="UrlPerfil")
     FechaNacimiento: datetime = Field(..., alias="FechaNacimiento")
 
     

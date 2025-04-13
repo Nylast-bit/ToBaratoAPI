@@ -43,6 +43,16 @@ def obtener_usuarioproveedor(db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="No se encontraron productos")
     return usuarioproveedor
 
+# Obtener un producto por ID
+@router.get("/usuarios/{id_usuario}/proveedores/{id_proveedor}", response_model=UsuarioProveedorResponse)
+def obtener_usuarioproveedor_por_id(id_usuario: int, id_proveedor: int, db: Session = Depends(get_db)):
+    usuarioproveedor = db.query(UsuarioProveedor).filter(
+        UsuarioProveedor.IdUsuario == id_usuario,
+        UsuarioProveedor.IdProveedor == id_proveedor
+    ).first()
+    if not usuarioproveedor:
+        raise HTTPException(status_code=404, detail="No se encontraron productos")
+    return usuarioproveedor
 
 @router.put("/usuarios/{id_usuario}/proveedores/{id_proveedor}", response_model=UsuarioProveedorResponse)
 def actualizar_usuario_proveedor(

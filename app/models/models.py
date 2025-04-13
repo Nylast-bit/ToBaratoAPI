@@ -76,6 +76,21 @@ class Proveedor(Base):
     Listas = relationship("Lista", back_populates="Proveedor")
     Productos = relationship("ProductoProveedor", back_populates="Proveedor")
     Usuarios = relationship("UsuarioProveedor", back_populates="Proveedor")
+    Sucursales = relationship("Sucursal", back_populates="Proveedor")
+
+class Sucursal(Base):
+    __tablename__ = 'Sucursal'
+    
+    IdSucursal = Column(Integer, primary_key=True, autoincrement=True)
+    IdProveedor = Column(Integer, ForeignKey('Proveedor.IdProveedor'), nullable=False)
+    NombreSucursal = Column(String(100), nullable=False)
+    latitud = Column(String(300), nullable=False)
+    longitud = Column(String(300), nullable=False)
+    FechaCreacion = Column(DateTime, default=lambda: datetime.now(pytz.timezone('America/La_Paz')))
+    
+    Proveedor = relationship("Proveedor", back_populates="Sucursales")
+    UsuarioProveedores = relationship("UsuarioProveedor", back_populates="Sucursal")
+    
 
 class Producto(Base):
     __tablename__ = 'Producto'
@@ -123,12 +138,14 @@ class UsuarioProveedor(Base):
     
     IdProveedor = Column(Integer, ForeignKey('Proveedor.IdProveedor'), primary_key=True)
     IdUsuario = Column(Integer, ForeignKey('Usuario.IdUsuario'), primary_key=True)
+    IdSucursal = Column(Integer, ForeignKey('Sucursal.IdSucursal'), nullable=False)
     ProductosComprados = Column(Integer, nullable=False)
     FechaUltimaCompra = Column(DateTime, nullable=False)
     Preferencia = Column(Boolean, nullable=False)
     
     Proveedor = relationship("Proveedor", back_populates="Usuarios")
     Usuario = relationship("Usuario", back_populates="Proveedores")
+    Sucursal = relationship("Sucursal", back_populates="UsuarioProveedores")
 
 class ProductoProveedor(Base):
     __tablename__ = 'ProductoProveedor'
@@ -143,3 +160,6 @@ class ProductoProveedor(Base):
     
     Producto = relationship("Producto", back_populates="Proveedores")
     Proveedor = relationship("Proveedor", back_populates="Productos")
+
+
+    
