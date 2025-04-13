@@ -3,8 +3,9 @@ from sqlalchemy.orm import Session
 from typing import List, Annotated
 from app.models.models import Usuario, TipoUsuario
 from app.database import SessionLocal
-from app.schemas.usuario import UsuarioCreate, UsuarioResponse, UsuarioUpdate
+from app.schemas.usuario import UsuarioCreate, UsuarioResponse, UsuarioUpdate, UsuarioUpdatePassword
 from passlib.context import CryptContext
+import bcrypt
 
 
 router = APIRouter()
@@ -157,9 +158,46 @@ def eliminar_usuario(id: int, db: Session = Depends(get_db)):
     
     return usuario  # ← Devuelve el objeto antes de eliminarlo en la sesión
 
+@router.put("/change-password", response_model=UsuarioResponse)
+def cambiar_contraseña(datos: UsuarioUpdatePassword, db: Session = Depends(get_db)):
+    # Buscar al usuario
+    usuario_db = db.query(Usuario).filter(Usuario.IdUsuario == datos.IdUsuario).first()
+    if not usuario_db:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={"error": "Usuario no encontrado", "id": datos.IdUsuario}
+        )
+
+    # Verificar la clave actual
+    if not verify_password(datos.Clave, usuario_db.Clave):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={"error": "La clave actual no es correcta"}
+        )
+
+    # Actualizar la contraseña
+    try:
+        usuario_db.Clave = hash_password(datos.ClaveNueva)
+        db.commit()
+        db.refresh(usuario_db)
+        return {"message": "Usuario actualizado con éxito"}
+
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail={"error": "Error al actualizar usuario", "details": str(e)}
+        )
+    
+        
+       
 
 #Hashar la contraseña
-def hash_password(password: str):
-    return pwd_context.hash(password)
+def hash_password(password: str) -> str:
+    hashed = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt())
+    return hashed.decode('utf-8')  # Lo guardas como string en la DB
 
+
+def verify_password(plain_password: str, hashed_password: str) -> bool:
+    return bcrypt.checkpw(plain_password.encode('utf-8'), hashed_password.encode('utf-8'))
 

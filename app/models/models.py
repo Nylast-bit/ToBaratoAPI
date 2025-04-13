@@ -162,4 +162,12 @@ class ProductoProveedor(Base):
     Proveedor = relationship("Proveedor", back_populates="Productos")
 
 
+class OTP(Base):
+    __tablename__ = "otp_codes"
+    id = Column(Integer, primary_key=True)
+    email = Column(String, nullable=False)
+    code = Column(String, nullable=False)
+    expires_at = Column(DateTime, nullable=False)
+
+
     

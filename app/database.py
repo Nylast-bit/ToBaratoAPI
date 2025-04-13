@@ -16,7 +16,7 @@ URL_DATABASE = os.getenv("DATABASE_URL")
 if not URL_DATABASE:
     raise ValueError("La URL de la base de datos no está configurada")
 
-print(f"!!! URL de conexión: {URL_DATABASE} !!!")
+
 #URL_DATABASE = f"{URL_DATABASE}"
 
 engine = create_engine(URL_DATABASE)

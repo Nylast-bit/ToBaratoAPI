@@ -34,6 +34,10 @@ class UsuarioUpdate(BaseModel):
     UrlPerfil: Optional[str] = Field(None, alias="UrlPerfil")
     FechaNacimiento: Optional[datetime] = Field(None, alias="FechaNacimiento")
 
+class UsuarioUpdatePassword(BaseModel):
+    IdUsuario: int
+    Clave: str
+    ClaveNueva: str
 class UsuarioResponse(UsuarioBase):
     IdUsuario: int  # ← Nombre exacto como en el modelo
     FechaCreacion: datetime
