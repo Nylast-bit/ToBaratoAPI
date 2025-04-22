@@ -1,13 +1,23 @@
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware  # 👈 Esto es nuevo
 from app.database import engine, Base
 from app.routes import tipoproveedor, tipousuario, categoria, unidadmedida, usuario, lista, producto, proveedor, listaproductos, usuarioproveedor, productoproveedor, sucursal
 
 app = FastAPI(title="To-Barato API")
 
+# 👇 Esto es nuevo también
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # O usa ["*"] si solo estás desarrollando
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 # Crea las tablas (solo desarrollo)
 Base.metadata.create_all(bind=engine)
 
-# Registra el router CON EL PREFIX CORRECTO
+# Registra los routers
 app.include_router(tipoproveedor.router, prefix="/api")
 app.include_router(tipousuario.router, prefix="/api")
 app.include_router(categoria.router, prefix="/api")
