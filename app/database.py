@@ -11,7 +11,8 @@ load_dotenv()
 #DB_HOST = os.getenv("DB_HOST")
 #DB_PORT = os.getenv("DB_PORT")
 #DB_NAME = os.getenv("DB_NAME")
-URL_DATABASE = os.getenv("DATABASE_URL")
+#URL_DATABASE = os.getenv("DATABASE_URL")
+URL_DATABASE = "postgresql://postgres:tzAo3bevuc9kU6F6kY651qcnyqGXuQEn0DbYNtGNjX37zLPeH4AdauGmYqVG5OSK@190.166.150.195:5432/postgres"
 
 if not URL_DATABASE:
     raise ValueError("La URL de la base de datos no está configurada")
