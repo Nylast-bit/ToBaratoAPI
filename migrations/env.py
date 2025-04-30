@@ -7,10 +7,11 @@ from alembic import context
 
 # --- Configuración crítica de paths ---
 # Añade el directorio raíz del proyecto al PYTHONPATH
-project_root = str(Path(__file__).resolve().parent.parent.parent)
-sys.path.insert(0, project_root)
+from pathlib import Path
+import sys
 
-# --- Importación de modelos ---
+# Añade el directorio raíz (To-Barato-API) al sys.path
+sys.path.append(str(Path(__file__).resolve().parents[1]))
 # Importa después de configurar el path
 from app.models.models import Base  # Asegúrate que esta ruta sea correcta
 from app.database import engine  # Importa tu engine configurado

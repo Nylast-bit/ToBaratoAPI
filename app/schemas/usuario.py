@@ -9,7 +9,7 @@ class UsuarioBase(BaseModel):
     NombreUsuario: str = Field(..., alias="NombreUsuario")  # ← Debe coincidir con el modelo SQLAlchemy
     Correo: EmailStr = Field(..., alias="Correo")   # ← Debe coincidir con el modelo SQLAlchemy
     Telefono: str = Field(..., alias="Telefono") # ← Debe coincidir con el modelo SQLAlchemy
-    Clave: str = Field(..., alias="Clave")
+    Clave: str = Field(...,exclude=True, alias="Clave") # ← Debe coincidir con el modelo SQLAlchemy
     Nombres: str = Field(..., alias="Nombres")
     Apellidos: str = Field(..., alias="Apellidos")
     Estado: bool = Field(..., alias="Estado")

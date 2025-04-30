@@ -19,8 +19,10 @@ def get_db():
 
 db_dependency = Annotated[Session, Depends(get_db)]
 
+@router.post("/login", response_model=UsuarioResponse)
 
-@router.post("/usuario", response_model=UsuarioResponse)
+
+@router.post("/signup", response_model=UsuarioResponse)
 def crear_usuario(usuario: UsuarioCreate, db: Session = Depends(get_db)):
     # Verificar si el correo ya existe
     if db.query(Usuario).filter(Usuario.Correo == usuario.Correo).first():
