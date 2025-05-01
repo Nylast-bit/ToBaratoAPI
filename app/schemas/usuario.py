@@ -34,10 +34,16 @@ class UsuarioUpdate(BaseModel):
     UrlPerfil: Optional[str] = Field(None, alias="UrlPerfil")
     FechaNacimiento: Optional[datetime] = Field(None, alias="FechaNacimiento")
 
+class UsuarioLoginModel(BaseModel):
+    Correo: EmailStr = Field(..., alias="Correo")   # ← Debe coincidir con el modelo SQLAlchemy
+    Clave: str = Field(...,exclude=True, alias="Clave") # ← Debe coincidir con el modelo SQLAlchemy
+
+
 class UsuarioUpdatePassword(BaseModel):
     IdUsuario: int
     Clave: str
     ClaveNueva: str
+
 class UsuarioResponse(UsuarioBase):
     IdUsuario: int  # ← Nombre exacto como en el modelo
     FechaCreacion: datetime

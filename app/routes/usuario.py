@@ -3,12 +3,17 @@ from sqlalchemy.orm import Session
 from typing import List, Annotated
 from app.models.models import Usuario, TipoUsuario
 from app.database import SessionLocal
-from app.schemas.usuario import UsuarioCreate, UsuarioResponse, UsuarioUpdate, UsuarioUpdatePassword
+from app.schemas.usuario import UsuarioCreate, UsuarioResponse, UsuarioUpdate, UsuarioUpdatePassword, UsuarioLoginModel
 from passlib.context import CryptContext
 import bcrypt
-
+from app.auth.utils import createAccessToken, decodeAccessToken
+from app.auth.service import UsuarioService
+from sqlalchemy.ext.asyncio import AsyncSession
+from datetime import timedelta
+from fastapi.responses import JSONResponse
 
 router = APIRouter()
+REFRESH_TOKEN_EXPIRY = 2 
 
 def get_db():
     db = SessionLocal()
@@ -19,7 +24,6 @@ def get_db():
 
 db_dependency = Annotated[Session, Depends(get_db)]
 
-@router.post("/login", response_model=UsuarioResponse)
 
 
 @router.post("/signup", response_model=UsuarioResponse)
@@ -80,6 +84,46 @@ def crear_usuario(usuario: UsuarioCreate, db: Session = Depends(get_db)):
         )
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+
+
+@router.post("/login", response_model=UsuarioResponse)
+async def loginUser(login_data: UsuarioLoginModel, session: AsyncSession = Depends(get_db)):
+    correo = login_data.Correo
+    clave = login_data.Clave
+
+    usuario = await UsuarioService.getUsuarioByEmail(correo) 
+
+    if usuario is not None:
+        password_valid = verify_password(clave, usuario.Clave)
+
+        if password_valid:
+            access_token = createAccessToken(
+                usuario={
+                    'email': usuario.Correo,
+                    'id': str(usuario.IdUsuario),
+                }
+            )
+
+            refresh_token = createAccessToken(
+                usuario={
+                    'email': usuario.Correo,
+                    'id': str(usuario.IdUsuario),
+                },
+                expiry=timedelta(days=REFRESH_TOKEN_EXPIRY),
+                refresh=True
+            )
+
+            return JSONResponse(
+                content={
+                    "message": "Login exitoso",
+                    "access_token": access_token,
+                    "refresh_token": refresh_token,
+                    "usuario": {
+                        "Email": usuario.Correo,
+                        "IdUsuario": str(usuario.IdUsuario),
+                    }
+                },
+            )
 
 
 #Obtener todos los usuarios
