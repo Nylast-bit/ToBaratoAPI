@@ -2,24 +2,25 @@ from fastapi import APIRouter, HTTPException, Depends, status, Response
 from sqlalchemy.orm import Session
 from typing import List, Annotated
 from app.models.models import ProductoProveedor
-from app.database import SessionLocal
 from app.schemas.productoproveedor import ProductoProveedorCreate, ProductoProveedorResponse, ProductoProveedorUpdate
+from app.database import AsyncSessionLocal
+
 
 
 router = APIRouter()
 
-def get_db():
-    db = SessionLocal()
+async def get_db():
+    db = AsyncSessionLocal()
     try:
         yield db
     finally:
-        db.close()
+        await db.close()
 
 db_dependency = Annotated[Session, Depends(get_db)]
 
 #Crear un nueva unidad de medida
 @router.post("/productoproveedor", response_model=ProductoProveedorResponse)
-def crear_listaproducto(productoproveedorParam: ProductoProveedorCreate, db: Session = Depends(get_db)):
+async def crear_listaproducto(productoproveedorParam: ProductoProveedorCreate, db: Session = Depends(get_db)):
     nuevo_productoproveedor= ProductoProveedor(
         IdProducto = productoproveedorParam.IdProveedor, # ← Usa el nombre correcto
         IdProveedor = productoproveedorParam.IdProveedor, # ← Usa el nombre correcto
@@ -38,7 +39,7 @@ def crear_listaproducto(productoproveedorParam: ProductoProveedorCreate, db: Ses
 
 # Obtener todos los productos
 @router.get("/productoproveedor", response_model=List[ProductoProveedorResponse])
-def obtener_productoproveedor(db: Session = Depends(get_db)):
+async def obtener_productoproveedor(db: Session = Depends(get_db)):
     productoproveedor = db.query(ProductoProveedor).all()
     if not productoproveedor:
         raise HTTPException(status_code=404, detail="No se encontraron productos")
@@ -47,7 +48,7 @@ def obtener_productoproveedor(db: Session = Depends(get_db)):
 
 # Obtener un productoproveedor por ID    
 @router.get("/productos/{id_producto}/proveedores/{id_proveedor}", response_model=ProductoProveedorResponse)
-def obtener_productoproveedor_por_id(id_producto: int, id_proveedor: int, db: Session = Depends(get_db)):
+async def obtener_productoproveedor_por_id(id_producto: int, id_proveedor: int, db: Session = Depends(get_db)):
     productoproveedor = db.query(ProductoProveedor).filter(
         ProductoProveedor.IdProducto == id_producto,
         ProductoProveedor.IdProveedor == id_proveedor
@@ -58,7 +59,7 @@ def obtener_productoproveedor_por_id(id_producto: int, id_proveedor: int, db: Se
 
 #actualizar un productoproveedor
 @router.put("/productos/{id_producto}/proveedores/{id_proveedor}", response_model=ProductoProveedorResponse)
-def actualizar_producto_proveedor(
+async def actualizar_producto_proveedor(
     id_producto: int,
     id_proveedor: int,
     datos: ProductoProveedorUpdate,
@@ -105,7 +106,7 @@ def actualizar_producto_proveedor(
     summary="Eliminar relación Producto-Proveedor",
     description="Elimina la asociación entre un producto y un proveedor específicos"
 )
-def eliminar_producto_proveedor(
+async def eliminar_producto_proveedor(
     id_producto: int,
     id_proveedor: int,
     db: Session = Depends(get_db)

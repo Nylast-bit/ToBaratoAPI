@@ -2,25 +2,26 @@ from fastapi import APIRouter, HTTPException, Depends, status
 from sqlalchemy.orm import Session
 from typing import List, Annotated
 from app.models.models import Proveedor,TipoProveedor
-from app.database import SessionLocal
 from app.schemas.proveedor import ProveedorCreate, ProveedorResponse, ProveedorUpdate
+from app.database import AsyncSessionLocal
+
 
 
 router = APIRouter()
 
-def get_db():
-    db = SessionLocal()
+async def get_db():
+    db = AsyncSessionLocal()
     try:
         yield db
     finally:
-        db.close()
+        await db.close()
 
 db_dependency = Annotated[Session, Depends(get_db)]
 
 
 #Crear un nueva unidad de medida
 @router.post("/proveedor", response_model=ProveedorResponse)
-def crear_proveedor(proveedorParam: ProveedorCreate, db: Session = Depends(get_db)):
+async def crear_proveedor(proveedorParam: ProveedorCreate, db: Session = Depends(get_db)):
     if not db.query(TipoProveedor).get(proveedorParam.IdTipoProveedor):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -62,13 +63,13 @@ def crear_proveedor(proveedorParam: ProveedorCreate, db: Session = Depends(get_d
 
 #Obtener todos los proveedores
 @router.get("/proveedor", response_model=List[ProveedorResponse])
-def obtener_proveedores(db: Session = Depends(get_db)):
+async def obtener_proveedores(db: Session = Depends(get_db)):
     proveedores = db.query(Proveedor).all()
     return proveedores
 
 #Obtener un proveedor por su id
 @router.get("/proveedor/{id}", response_model=ProveedorResponse)
-def obtener_proveedor_por_id(id: int, db: Session = Depends(get_db)):
+async def obtener_proveedor_por_id(id: int, db: Session = Depends(get_db)):
     proveedor = db.query(Proveedor).filter(Proveedor.IdProveedor == id).first()
     if proveedor is None:
         raise HTTPException(status_code=404, detail="No existe el proveedor")
@@ -76,7 +77,7 @@ def obtener_proveedor_por_id(id: int, db: Session = Depends(get_db)):
 
 #Actualizar un proveedor
 @router.put("/proveedor/{id}", response_model=ProveedorResponse)
-def actualizar_proveedor(id: int, proveedorParam: ProveedorUpdate, db: Session = Depends(get_db)):
+async def actualizar_proveedor(id: int, proveedorParam: ProveedorUpdate, db: Session = Depends(get_db)):
     # 1. Obtener proveedor existente
     proveedor = db.query(Proveedor).filter(Proveedor.IdProveedor == id).first()
     if not proveedor:
@@ -116,7 +117,7 @@ def actualizar_proveedor(id: int, proveedorParam: ProveedorUpdate, db: Session =
 
 #Eliminar un proveedor
 @router.delete("/proveedor/{id}", response_model=ProveedorResponse)
-def eliminar_proveedor(id: int, db: Session = Depends(get_db)):
+async def eliminar_proveedor(id: int, db: Session = Depends(get_db)):
     proveedor = db.query(Proveedor).filter(Proveedor.IdProveedor == id).first()
     if proveedor is None:
         raise HTTPException(status_code=404, detail="No existe el proveedor")

@@ -2,24 +2,25 @@ from fastapi import APIRouter, HTTPException, Depends, status
 from sqlalchemy.orm import Session
 from typing import List, Annotated
 from app.models.models import Lista, Usuario, Proveedor
-from app.database import SessionLocal
 from app.schemas.lista import ListaCreate, ListaResponse, ListaUpdate
+from app.database import AsyncSessionLocal
+
 
 
 router = APIRouter()
 
-def get_db():
-    db = SessionLocal()
+async def get_db():
+    db = AsyncSessionLocal()
     try:
         yield db
     finally:
-        db.close()
+       await db.close()
 
 db_dependency = Annotated[Session, Depends(get_db)]
 
 #Crear un nueva unidad de medida
 @router.post("/lista", response_model=ListaResponse)
-def crear_lista(listaParam: ListaCreate, db: Session = Depends(get_db)):
+async def crear_lista(listaParam: ListaCreate, db: Session = Depends(get_db)):
     # Verificaciones separadas con mensajes de error específicos
     errors = []
 
@@ -80,13 +81,13 @@ def crear_lista(listaParam: ListaCreate, db: Session = Depends(get_db)):
 
 #Obtener todas las listas   
 @router.get("/lista", response_model=List[ListaResponse])
-def obtener_listas(db: Session = Depends(get_db)):
+async def obtener_listas(db: Session = Depends(get_db)):
     listas = db.query(Lista).all()
     return listas
 
 #Obtener una lista por su id  
 @router.get("/lista/{id}", response_model=ListaResponse)        
-def obtener_lista_por_id(id: int, db: Session = Depends(get_db)):
+async def obtener_lista_por_id(id: int, db: Session = Depends(get_db)):
     lista = db.query(Lista).filter(Lista.IdLista == id).first()
     if lista is None:
         raise HTTPException(status_code=404, detail="No existe la lista") 
@@ -94,7 +95,7 @@ def obtener_lista_por_id(id: int, db: Session = Depends(get_db)):
 
 #Actualizar una lista por su id
 @router.put("/lista/{id}", response_model=ListaResponse)
-def actualizar_lista(id: int, listaParam: ListaUpdate, db: Session = Depends(get_db)):
+async def actualizar_lista(id: int, listaParam: ListaUpdate, db: Session = Depends(get_db)):
     lista = db.query(Lista).filter(Lista.IdLista == id).first()
     if not lista:
         raise HTTPException(
@@ -140,7 +141,7 @@ def actualizar_lista(id: int, listaParam: ListaUpdate, db: Session = Depends(get
     
 #Eliminar una lista por su id
 @router.delete("/lista/{id}", response_model=ListaResponse)
-def eliminar_lista(id: int, db: Session = Depends(get_db)):
+async def eliminar_lista(id: int, db: Session = Depends(get_db)):
     lista = db.query(Lista).filter(Lista.IdLista == id).first()
     if lista is None:
         raise HTTPException(status_code=404, detail="No existe la lista")

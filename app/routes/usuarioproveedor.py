@@ -2,14 +2,15 @@ from fastapi import APIRouter, HTTPException, Depends, Response, status
 from sqlalchemy.orm import Session
 from typing import List, Annotated
 from app.models.models import UsuarioProveedor
-from app.database import SessionLocal
 from app.schemas.usuarioproveedor import UsuarioProveedorCreate, UsuarioProveedorResponse, UsuarioProveedorUpdate
+from app.database import AsyncSessionLocal
+
 
 
 router = APIRouter()
 
 def get_db():
-    db = SessionLocal()
+    db = AsyncSessionLocal()
     try:
         yield db
     finally:

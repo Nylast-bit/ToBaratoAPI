@@ -2,24 +2,25 @@ from fastapi import APIRouter, HTTPException, Depends, status, Response
 from sqlalchemy.orm import Session
 from typing import List, Annotated
 from app.models.models import ListaProducto
-from app.database import SessionLocal
 from app.schemas.listaproductos import ListaProductoCreate, ListaProductoResponse, ListaProductoUpdate
+from app.database import AsyncSessionLocal
+
 
 
 router = APIRouter()
 
-def get_db():
-    db = SessionLocal()
+async def get_db():
+    db = AsyncSessionLocal()
     try:
         yield db
     finally:
-        db.close()
+        await db.close()
 
 db_dependency = Annotated[Session, Depends(get_db)]
 
 #Crear una nueva lista de productos
 @router.post("/listaproducto", response_model=ListaProductoResponse)
-def crear_listaproducto(listaProductoParam: ListaProductoCreate, db: Session = Depends(get_db)):
+async def crear_listaproducto(listaProductoParam: ListaProductoCreate, db: Session = Depends(get_db)):
     nueva_listaproducto = ListaProducto(
         IdLista = listaProductoParam.IdLista, # ← Usa el nombre correcto
         IdProducto = listaProductoParam.IdProducto, # ← Usa el nombre correcto
@@ -34,7 +35,7 @@ def crear_listaproducto(listaProductoParam: ListaProductoCreate, db: Session = D
 
 # Obtener todos las listas de productos
 @router.get("/listaproducto", response_model=List[ListaProductoResponse])   
-def obtener_listaproductos(db: Session = Depends(get_db)):
+async def obtener_listaproductos(db: Session = Depends(get_db)):
     listaproductos = db.query(ListaProducto).all()
     if not listaproductos:
         raise HTTPException(status_code=404, detail="No se encontraron productos")
@@ -42,7 +43,7 @@ def obtener_listaproductos(db: Session = Depends(get_db)):
 
 # Obtener una lista de productos por ID
 @router.get("/listas/{id_lista}/productos/{id_producto}", response_model=ListaProductoResponse)
-def obtener_producto_lista(
+async def obtener_producto_lista(
     id_lista: int,
     id_producto: int,
     db: Session = Depends(get_db)
@@ -69,7 +70,7 @@ def obtener_producto_lista(
 
 #Actualizar un producto
 @router.put("/listas/{id_lista}/productos/{id_producto}", response_model=ListaProductoResponse)
-def actualizar_producto_lista(
+async def actualizar_producto_lista(
     id_lista: int,
     id_producto: int,
     datos: ListaProductoUpdate,
@@ -95,7 +96,7 @@ def actualizar_producto_lista(
 
 #eliminar un producto de una lista
 @router.delete("/listas/{id_lista}/productos/{id_producto}", status_code=status.HTTP_204_NO_CONTENT)
-def eliminar_producto_lista(
+async def eliminar_producto_lista(
     id_lista: int,
     id_producto: int,
     db: Session = Depends(get_db)

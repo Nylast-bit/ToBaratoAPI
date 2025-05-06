@@ -2,23 +2,25 @@ from fastapi import APIRouter, HTTPException, Depends, status
 from sqlalchemy.orm import Session
 from typing import List, Annotated
 from app.models.models import Sucursal, Proveedor
-from app.database import SessionLocal
 from app.schemas.sucursal import SucursalCreate, SucursalResponse, SucursalUpdate
+from app.database import AsyncSessionLocal
+
+
 
 router = APIRouter()
 
-def get_db():
-    db = SessionLocal()
+async def get_db():
+    db = AsyncSessionLocal()
     try:
         yield db
     finally:
-        db.close()
+        await db.close()
 
 db_dependency = Annotated[Session, Depends(get_db)]
 
 # Crear una nueva sucursal
 @router.post("/sucursal", response_model=SucursalResponse, status_code=status.HTTP_201_CREATED)
-def crear_sucursal(sucursal: SucursalCreate, db: db_dependency):
+async def crear_sucursal(sucursal: SucursalCreate, db: db_dependency):
     # Verificar que el proveedor exista
     if not db.query(Proveedor).get(sucursal.IdProveedor):
         raise HTTPException(
@@ -55,13 +57,13 @@ def crear_sucursal(sucursal: SucursalCreate, db: db_dependency):
 
 # Obtener todas las sucursales
 @router.get("/sucursal", response_model=List[SucursalResponse])
-def obtener_sucursales(db: db_dependency):
+async def obtener_sucursales(db: db_dependency):
     sucursales = db.query(Sucursal).all()
     return sucursales
 
 # Obtener una sucursal por su ID
 @router.get("/sucursal/{id}", response_model=SucursalResponse)
-def obtener_sucursal(id: int, db: db_dependency):
+async def obtener_sucursal(id: int, db: db_dependency):
     sucursal = db.query(Sucursal).filter(Sucursal.IdSucursal == id).first()
     if not sucursal:
         raise HTTPException(
@@ -72,7 +74,7 @@ def obtener_sucursal(id: int, db: db_dependency):
 
 # Actualizar una sucursal
 @router.put("/sucursal/{id}", response_model=SucursalResponse)
-def actualizar_sucursal(id: int, sucursal_data: SucursalUpdate, db: db_dependency):
+async def actualizar_sucursal(id: int, sucursal_data: SucursalUpdate, db: db_dependency):
     sucursal = db.query(Sucursal).filter(Sucursal.IdSucursal == id).first()
     if not sucursal:
         raise HTTPException(
@@ -112,7 +114,7 @@ def actualizar_sucursal(id: int, sucursal_data: SucursalUpdate, db: db_dependenc
 
 # Eliminar una sucursal
 @router.delete("/sucursal/{id}", response_model=SucursalResponse)
-def eliminar_sucursal(id: int, db: db_dependency):
+async def eliminar_sucursal(id: int, db: db_dependency):
     sucursal = db.query(Sucursal).filter(Sucursal.IdSucursal == id).first()
     if not sucursal:
         raise HTTPException(

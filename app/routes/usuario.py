@@ -2,7 +2,6 @@ from fastapi import APIRouter, HTTPException, Depends, status
 from sqlalchemy.orm import Session
 from typing import List, Annotated
 from app.models.models import Usuario, TipoUsuario
-from app.database import SessionLocal
 from app.schemas.usuario import UsuarioCreate, UsuarioResponse, UsuarioUpdate, UsuarioUpdatePassword, UsuarioLoginModel
 from passlib.context import CryptContext
 import bcrypt
@@ -11,25 +10,34 @@ from app.auth.service import UsuarioService
 from sqlalchemy.ext.asyncio import AsyncSession
 from datetime import timedelta
 from fastapi.responses import JSONResponse
+from app.dependencies import get_session
+
+from app.database import AsyncSessionLocal
 
 router = APIRouter()
 REFRESH_TOKEN_EXPIRY = 2 
 
-def get_db():
-    db = SessionLocal()
+async def get_db():
+    db = AsyncSessionLocal()
     try:
         yield db
     finally:
-        db.close()
+        await db.close()
 
 db_dependency = Annotated[Session, Depends(get_db)]
 
 
 
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
 @router.post("/signup", response_model=UsuarioResponse)
-def crear_usuario(usuario: UsuarioCreate, db: Session = Depends(get_db)):
-    # Verificar si el correo ya existe
-    if db.query(Usuario).filter(Usuario.Correo == usuario.Correo).first():
+async def crear_usuario(usuario: UsuarioCreate, db: AsyncSession = Depends(get_db)):
+    # 1. Verificar si el correo ya existe (forma asíncrona)
+    result = await db.execute(
+        select(Usuario).where(Usuario.correo == usuario.Correo)
+    )
+    if result.scalars().first():
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail={
@@ -40,8 +48,11 @@ def crear_usuario(usuario: UsuarioCreate, db: Session = Depends(get_db)):
             }
         )
     
-    # Verificar tipo de usuario
-    if not db.query(TipoUsuario).get(usuario.IdTipoUsuario):
+    # 2. Verificar tipo de usuario (forma asíncrona)
+    result = await db.execute(
+        select(TipoUsuario).where(TipoUsuario.id == usuario.IdTipoUsuario)
+    )
+    if not result.scalars().first():
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail={
@@ -53,27 +64,27 @@ def crear_usuario(usuario: UsuarioCreate, db: Session = Depends(get_db)):
         )
     
     try:
+        # 3. Crear el nuevo usuario
         nuevo_usuario = Usuario(
             IdTipoUsuario=usuario.IdTipoUsuario,
             NombreUsuario=usuario.NombreUsuario,
             Correo=usuario.Correo,
             Telefono=usuario.Telefono,
-            Clave=hash_password(usuario.Clave),  # Asegúrate de hashear la contraseña
+            Clave=hash_password(usuario.Clave),  # Hasheo seguro
             Nombres=usuario.Nombres,
             Apellidos=usuario.Apellidos,
             Estado=usuario.Estado,
             FechaNacimiento=usuario.FechaNacimiento,
             UrlPerfil=usuario.UrlPerfil,
-
         )
         
         db.add(nuevo_usuario)
-        db.commit()
-        db.refresh(nuevo_usuario)
+        await db.commit()
+        await db.refresh(nuevo_usuario)
         return nuevo_usuario
         
     except Exception as e:
-        db.rollback()
+        await db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail={
@@ -83,58 +94,69 @@ def crear_usuario(usuario: UsuarioCreate, db: Session = Depends(get_db)):
             }
         )
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+@router.post("/login", response_model=UsuarioLoginModel)
+async def login_user(
+    login_data: UsuarioLoginModel, 
+    session: AsyncSession = Depends(get_session)
+):
+    # Verificar usuario
+    usuario = await UsuarioService.getUsuarioByEmail(login_data.Correo, session)
+    
+    if not usuario:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Credenciales inválidas"
+        )
 
+    # Verificar contraseña
+    if not await verify_password(login_data.Clave, usuario.Clave):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Credenciales inválidas"
+        )
 
-@router.post("/login", response_model=UsuarioResponse)
-async def loginUser(login_data: UsuarioLoginModel, session: AsyncSession = Depends(get_db)):
-    correo = login_data.Correo
-    clave = login_data.Clave
+    # Crear tokens
+    access_token = createAccessToken(
+        usuario={
+            'email': usuario.Correo,
+            'id': str(usuario.IdUsuario),
+        }
+    )
 
-    usuario = await UsuarioService.getUsuarioByEmail(correo) 
+    refresh_token = createAccessToken(
+        usuario={
+            'email': usuario.Correo,
+            'id': str(usuario.IdUsuario),
+        },
+        expiry=timedelta(days=REFRESH_TOKEN_EXPIRY),
+        refresh=True
+    )
 
-    if usuario is not None:
-        password_valid = verify_password(clave, usuario.Clave)
-
-        if password_valid:
-            access_token = createAccessToken(
-                usuario={
-                    'email': usuario.Correo,
-                    'id': str(usuario.IdUsuario),
-                }
-            )
-
-            refresh_token = createAccessToken(
-                usuario={
-                    'email': usuario.Correo,
-                    'id': str(usuario.IdUsuario),
-                },
-                expiry=timedelta(days=REFRESH_TOKEN_EXPIRY),
-                refresh=True
-            )
-
-            return JSONResponse(
-                content={
-                    "message": "Login exitoso",
-                    "access_token": access_token,
-                    "refresh_token": refresh_token,
-                    "usuario": {
-                        "Email": usuario.Correo,
-                        "IdUsuario": str(usuario.IdUsuario),
-                    }
-                },
-            )
-
-
+    # Preparar respuesta
+    return {
+        "message": "Login exitoso",
+        "tokens": {
+            "access_token": access_token,
+            "refresh_token": refresh_token,
+            "token_type": "bearer"
+        },
+        "usuario": {
+            "id": usuario.IdUsuario,
+            "email": usuario.Correo,
+            "nombre": f"{usuario.Nombres} {usuario.Apellidos}",
+            # Agrega más campos según necesites
+        }
+    }
 #Obtener todos los usuarios
 @router.get("/usuario", response_model=List[UsuarioResponse])
-def obtener_usuario(db: Session = Depends(get_db)):
-    usuario = db.query(Usuario).all()
-    return usuario
-
+async def obtener_usuario(db: AsyncSession = Depends(get_db)):
+    async with db as session:
+        result = await session.execute(select(Usuario))
+        return result.scalars().all()
+    
 #Obtener un usuario por su id
 @router.get("/usuario/{id}", response_model=UsuarioResponse)
-def obtener_unidadmedida_por_id(id: int, db: Session = Depends(get_db)):
+async def obtener_unidadmedida_por_id(id: int, db: Session = Depends(get_db)):
     usuario = db.query(Usuario).filter(Usuario.IdUsuario == id).first()
     if usuario is None:
         raise HTTPException(status_code=404, detail="No existe esa unidad de medida")
@@ -143,7 +165,7 @@ def obtener_unidadmedida_por_id(id: int, db: Session = Depends(get_db)):
 
 #Actualizar un usuario
 @router.put("/usuario/{id}", response_model=UsuarioResponse)
-def actualizar_usuario(id: int, usuarioParam: UsuarioUpdate, db: Session = Depends(get_db)):
+async def actualizar_usuario(id: int, usuarioParam: UsuarioUpdate, db: Session = Depends(get_db)):
     # 1. Obtener usuario existente
     usuario = db.query(Usuario).filter(Usuario.IdUsuario == id).first()
     if not usuario:
@@ -194,7 +216,7 @@ def actualizar_usuario(id: int, usuarioParam: UsuarioUpdate, db: Session = Depen
 
 #Eliminar un usuario
 @router.delete("/usuario/{id}", response_model=UsuarioResponse)
-def eliminar_usuario(id: int, db: Session = Depends(get_db)):
+async def eliminar_usuario(id: int, db: Session = Depends(get_db)):
     usuario = db.query(Usuario).filter(Usuario.IdUsuario == id).first()
     if usuario is None:
         raise HTTPException(status_code=404, detail="No existe ese usuario")
@@ -205,7 +227,7 @@ def eliminar_usuario(id: int, db: Session = Depends(get_db)):
     return usuario  # ← Devuelve el objeto antes de eliminarlo en la sesión
 
 @router.put("/change-password", response_model=UsuarioResponse)
-def cambiar_contraseña(datos: UsuarioUpdatePassword, db: Session = Depends(get_db)):
+async def cambiar_contraseña(datos: UsuarioUpdatePassword, db: Session = Depends(get_db)):
     # Buscar al usuario
     usuario_db = db.query(Usuario).filter(Usuario.IdUsuario == datos.IdUsuario).first()
     if not usuario_db:
@@ -246,4 +268,3 @@ def hash_password(password: str) -> str:
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     return bcrypt.checkpw(plain_password.encode('utf-8'), hashed_password.encode('utf-8'))
-

@@ -7,16 +7,18 @@ import os
 import logging
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select
+from sqlalchemy.future import select
+from app.models.models import Usuario
 
 class UsuarioService:
-    async def getUsuarioByEmail(self, correo: str, session: AsyncSession):
-        statement = select(Usuario).where(Usuario.Correo == correo)
+    async def getUsuarioByEmail(correo: str, session: AsyncSession):
+        statement = select(Usuario).where(Usuario.correo == correo)
 
         result = await session.execute(statement)
 
-        Usuario = result.first()
+        usuario = result.first()
 
-        return Usuario
+        return usuario
     
     async def usuarioExiste(self, correo: str, session: AsyncSession):
         user = await self.getUsuarioByEmail(correo, session)
