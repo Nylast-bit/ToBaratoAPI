@@ -6,7 +6,7 @@ from app.utils import now_bolivia
 class TipoUsuario(Base):
     __tablename__ = 'TipoUsuario'
     
-    Id = Column(Integer, primary_key=True, autoincrement=True)
+    IdTipoUsuario = Column(Integer, primary_key=True, autoincrement=True)
     NombreTipoUsuario = Column(String(100), nullable=False)
     FechaCreacion = Column(DateTime, default=now_bolivia)
     
@@ -42,8 +42,8 @@ class UnidadMedida(Base):
 class Usuario(Base):
     __tablename__ = 'Usuario'
     
-    Id = Column(Integer, primary_key=True, autoincrement=True)
-    TipoUsuarioId = Column(Integer, ForeignKey('TipoUsuario.Id'), nullable=False)
+    IdUsuario = Column(Integer, primary_key=True, autoincrement=True)
+    IdTipoUsuario = Column(Integer, ForeignKey('TipoUsuario.IdTipoUsuario'), nullable=False)
     NombreUsuario = Column(String(100), unique=True)
     Correo = Column(String(255), unique=True, nullable=False)
     Telefono = Column(String(15), nullable=False)
@@ -109,7 +109,7 @@ class Lista(Base):
     __tablename__ = 'Lista'
     
     Id = Column(Integer, primary_key=True, autoincrement=True)
-    UsuarioId = Column(Integer, ForeignKey('Usuario.Id'), nullable=False)
+    UsuarioId = Column(Integer, ForeignKey('Usuario.IdUsuario'), nullable=False)
     ProveedorId = Column(Integer, ForeignKey('Proveedor.Id'), nullable=False)
     Nombre = Column(String(100), nullable=False)
     PrecioTotal = Column(Numeric(10, 2), nullable=False, default=0.00)
@@ -142,7 +142,7 @@ class UsuarioProveedor(Base):
     )
     
     ProveedorId = Column(Integer, ForeignKey('Proveedor.Id'))
-    UsuarioId = Column(Integer, ForeignKey('Usuario.Id'))
+    UsuarioId = Column(Integer, ForeignKey('Usuario.IdUsuario'))
     SucursalId = Column(Integer, ForeignKey('Sucursal.Id'), nullable=False)
     ProductosComprados = Column(Integer, nullable=False, default=0)
     FechaUltimaCompra = Column(DateTime)

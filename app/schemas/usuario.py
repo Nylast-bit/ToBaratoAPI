@@ -38,9 +38,20 @@ class UsuarioLoginModel(BaseModel):
     Correo: EmailStr = Field(..., alias="Correo")   # ← Debe coincidir con el modelo SQLAlchemy
     Clave: str = Field(...,exclude=True, alias="Clave") # ← Debe coincidir con el modelo SQLAlchemy
 
-class UsuarioLoginModel(BaseModel):
-    Correo: EmailStr = Field(..., alias="Correo")
-    Clave: str = Field(..., exclude=True, alias="Clave")  # exclude=True para no mostrar en responses
+class UsuarioResponseModel(BaseModel):
+    id: int
+    email: EmailStr
+    nombre: str
+
+class TokenModel(BaseModel):
+    access_token: str
+    refresh_token: str
+    token_type: str = "bearer"
+
+class LoginResponseModel(BaseModel):
+    message: str
+    tokens: TokenModel
+    usuario: UsuarioResponseModel
 
 class TokenResponse(BaseModel):
     access_token: str

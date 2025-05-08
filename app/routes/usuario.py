@@ -2,20 +2,22 @@ from fastapi import APIRouter, HTTPException, Depends, status
 from sqlalchemy.orm import Session
 from typing import List, Annotated
 from app.models.models import Usuario, TipoUsuario
-from app.schemas.usuario import UsuarioCreate, UsuarioResponse, UsuarioUpdate, UsuarioUpdatePassword, UsuarioLoginModel
-from passlib.context import CryptContext
+from app.schemas.usuario import UsuarioCreate, UsuarioResponse, UsuarioUpdate, UsuarioUpdatePassword, UsuarioLoginModel, LoginResponseModel, TokenModel, UsuarioResponseModel
 import bcrypt
 from app.auth.utils import createAccessToken, decodeAccessToken
 from app.auth.service import UsuarioService
 from sqlalchemy.ext.asyncio import AsyncSession
-from datetime import timedelta
-from fastapi.responses import JSONResponse
+from datetime import timedelta, datetime
 from app.dependencies import get_session
-
 from app.database import AsyncSessionLocal
+from app.auth.dependencies import AccessTokenBearer, RefreshTokenBearer
+from fastapi.responses import JSONResponse
+
 
 router = APIRouter()
 REFRESH_TOKEN_EXPIRY = 2 
+access_token_bearer = AccessTokenBearer()
+refresh_token_bearer = RefreshTokenBearer()
 
 async def get_db():
     db = AsyncSessionLocal()
@@ -35,7 +37,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 async def crear_usuario(usuario: UsuarioCreate, db: AsyncSession = Depends(get_db)):
     # 1. Verificar si el correo ya existe (forma asíncrona)
     result = await db.execute(
-        select(Usuario).where(Usuario.correo == usuario.Correo)
+        select(Usuario).where(Usuario.Correo == usuario.Correo)
     )
     if result.scalars().first():
         raise HTTPException(
@@ -50,7 +52,7 @@ async def crear_usuario(usuario: UsuarioCreate, db: AsyncSession = Depends(get_d
     
     # 2. Verificar tipo de usuario (forma asíncrona)
     result = await db.execute(
-        select(TipoUsuario).where(TipoUsuario.id == usuario.IdTipoUsuario)
+        select(TipoUsuario).where(TipoUsuario.Id == usuario.IdTipoUsuario)
     )
     if not result.scalars().first():
         raise HTTPException(
@@ -94,7 +96,7 @@ async def crear_usuario(usuario: UsuarioCreate, db: AsyncSession = Depends(get_d
             }
         )
 
-@router.post("/login", response_model=UsuarioLoginModel)
+@router.post("/login", response_model=LoginResponseModel)
 async def login_user(
     login_data: UsuarioLoginModel, 
     session: AsyncSession = Depends(get_session)
@@ -102,6 +104,9 @@ async def login_user(
     # Verificar usuario
     usuario = await UsuarioService.getUsuarioByEmail(login_data.Correo, session)
     
+    if not usuario or not usuario.Clave:
+        raise HTTPException(status_code=400, detail="Usuario sin contraseña registrada")
+
     if not usuario:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -109,47 +114,60 @@ async def login_user(
         )
 
     # Verificar contraseña
-    if not await verify_password(login_data.Clave, usuario.Clave):
+    if not verify_password(login_data.Clave, usuario.Clave):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Credenciales inválidas"
         )
 
     # Crear tokens
-    access_token = createAccessToken(
-        usuario={
-            'email': usuario.Correo,
-            'id': str(usuario.IdUsuario),
-        }
-    )
-
+    access_token = createAccessToken(usuario=usuario)
     refresh_token = createAccessToken(
-        usuario={
-            'email': usuario.Correo,
-            'id': str(usuario.IdUsuario),
-        },
+        usuario=usuario,
         expiry=timedelta(days=REFRESH_TOKEN_EXPIRY),
         refresh=True
     )
 
-    # Preparar respuesta
-    return {
-        "message": "Login exitoso",
-        "tokens": {
-            "access_token": access_token,
-            "refresh_token": refresh_token,
-            "token_type": "bearer"
-        },
-        "usuario": {
-            "id": usuario.IdUsuario,
-            "email": usuario.Correo,
-            "nombre": f"{usuario.Nombres} {usuario.Apellidos}",
-            # Agrega más campos según necesites
-        }
-    }
+    # Preparar respuesta de acuerdo con el nuevo modelo de respuesta
+    return LoginResponseModel(
+        status_code=status.HTTP_200_OK,
+        message="Login exitoso",
+        tokens=TokenModel(
+            access_token=access_token,
+            refresh_token=refresh_token,
+            token_type="bearer"
+        ),
+        usuario=UsuarioResponseModel(
+            id=usuario.IdUsuario,
+            email=usuario.Correo,
+            nombre=f"{usuario.Nombres} {usuario.Apellidos}"
+        )
+    )
+
+@router.get("/refresh_token")
+async def get_new_access_token(token_details:dict = Depends(refresh_token_bearer)): 
+    expiry_timestamp = token_details['exp']
+
+    if datetime.fromtimestamp(expiry_timestamp) > datetime.now():
+        new_access_token = createAccessToken(
+            usuario={token_details['IdUsuario'],
+                     token_details['Correo'],
+                     token_details['NombreUsuario']},
+        )
+
+        return JSONResponse(
+            content={"access_token": new_access_token, "token_type": "bearer"},
+            status_code=status.HTTP_200_OK
+        )
+
+    raise HTTPException(
+        status_code=status.HTTP_400_BAD_REQUEST,
+        detail="El token de actualizado ha expirado o no es válido"
+        )
+
 #Obtener todos los usuarios
 @router.get("/usuario", response_model=List[UsuarioResponse])
-async def obtener_usuario(db: AsyncSession = Depends(get_db)):
+async def obtener_usuario(db: AsyncSession = Depends(get_db), user_details=Depends(access_token_bearer)):
     async with db as session:
         result = await session.execute(select(Usuario))
         return result.scalars().all()

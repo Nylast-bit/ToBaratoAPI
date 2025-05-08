@@ -12,13 +12,11 @@ from app.models.models import Usuario
 
 class UsuarioService:
     async def getUsuarioByEmail(correo: str, session: AsyncSession):
-        statement = select(Usuario).where(Usuario.correo == correo)
-
+        statement = select(Usuario).where(Usuario.Correo == correo)
         result = await session.execute(statement)
-
-        usuario = result.first()
-
+        usuario = result.scalars().first()
         return usuario
+
     
     async def usuarioExiste(self, correo: str, session: AsyncSession):
         user = await self.getUsuarioByEmail(correo, session)
