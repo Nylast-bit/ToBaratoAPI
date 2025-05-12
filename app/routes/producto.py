@@ -4,7 +4,8 @@ from typing import List, Annotated
 from app.models.models import Producto, Categoria, UnidadMedida
 from app.schemas.producto import ProductoCreate, ProductoResponse, ProductoUpdate
 from app.database import AsyncSessionLocal
-
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.future import select
 
 
 router = APIRouter()
@@ -18,29 +19,68 @@ async def get_db():
 
 db_dependency = Annotated[Session, Depends(get_db)]
 
-#Crear un nueva unidad de medida
+#Crear un nuevo producto
+
+
 @router.post("/producto", response_model=ProductoResponse)
 async def crear_producto(productoParam: ProductoCreate, db: Session = Depends(get_db)):
-    nuevo_producto = Producto(
-        IdCategoria = productoParam.IdCategoria, # ← Usa el nombre correcto
-        IdUnidadMedida = productoParam.IdUnidadMedida, # ← Usa el nombre correcto
-        Nombre = productoParam.Nombre, # ← Usa el nombre correcto
-        UrlImagen = productoParam.UrlImagen, # ← Usa el nombre correcto
-        Descripcion = productoParam.Descripcion # ← Usa el nombre correcto
-    )
-    db.add(nuevo_producto)
-    db.commit()
-    db.refresh(nuevo_producto)
-    return nuevo_producto
+    # Verificar que la categoría existe
+    categoria = await db.execute(select(Categoria).filter(Categoria.IdCategoria == productoParam.IdCategoria))
+    categoria = categoria.scalars().first()
+    if not categoria:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="La categoría especificada no existe"
+        )
+
+    # Verificar que la unidad de medida existe
+    unidad_medida = await db.execute(select(UnidadMedida).filter(UnidadMedida.IdUnidadMedida == productoParam.IdUnidadMedida))
+    unidad_medida = unidad_medida.scalars().first()
+    if not unidad_medida:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="La unidad de medida especificada no existe"
+        )
+    
+    try:
+        # Crear el nuevo producto
+        nuevo_producto = Producto(
+            IdCategoria = productoParam.IdCategoria,
+            IdUnidadMedida = productoParam.IdUnidadMedida,
+            Nombre = productoParam.Nombre,
+            UrlImagen = productoParam.UrlImagen,
+            Descripcion = productoParam.Descripcion
+        )
+
+        # Añadir el producto y realizar commit
+        db.add(nuevo_producto)
+        await db.commit()  # Usamos commit asincrónico
+        await db.refresh(nuevo_producto)  # Refrescar para obtener el objeto actualizado
+
+        return nuevo_producto
+
+    except Exception as e:
+        # Rollback en caso de error
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail={"error": "Error al crear producto", "details": str(e)}
+        )
+
 
 
 # Obtener todos los productos   
 @router.get("/producto", response_model=List[ProductoResponse])
-async def obtener_productos(db: Session = Depends(get_db)):
-    productos = db.query(Producto).all()
+async def obtener_productos(db: AsyncSession = Depends(get_db)):
+    # Ejecutar la consulta asincrónica para obtener todos los productos
+    result = await db.execute(select(Producto))
+    productos = result.scalars().all()
+
     if not productos:
         raise HTTPException(status_code=404, detail="No se encontraron productos")
+    
     return productos
+
 
 # Obtener un producto por su id
 @router.get("/producto/{id}", response_model=ProductoResponse)
@@ -114,3 +154,13 @@ async def eliminar_producto(id: int, db: Session = Depends(get_db)):
     db.commit()
     
     return producto  # ← Devuelve el objeto antes de eliminarlo en la sesión
+
+
+# Obtener productos por categoria
+@router.get("/producto/categoria/{id}", response_model=List[ProductoResponse])
+async def obtener_productos_por_categoria(id: int, db: Session = Depends(get_db)):
+    productos = db.query(Producto).filter(Producto.CategoriaId == id).all()
+    if not productos:
+        raise HTTPException(status_code=404, detail="No se encontraron productos para esta categoría")
+    return productos
+

@@ -4,10 +4,9 @@ from typing import List, Annotated
 from app.models.models import TipoUsuario
 from app.schemas.tipousuario import TipoUsuarioCreate, TipoUsuarioResponse
 from app.database import AsyncSessionLocal
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.ext.asyncio import AsyncSession
 from fastapi import HTTPException, status
-from sqlalchemy import select
+from sqlalchemy.future import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 
 
@@ -31,7 +30,7 @@ async def crear_tipo_usuario(
 ):
     try:
         # Validaciones
-        nombre_limpio = tipo_data.nombre.strip()  # Accede al campo correcto
+        nombre_limpio = tipo_data.NombreTipoUsuario.strip()  # Accede al campo correcto
         
         if nombre_limpio.isdigit():
             raise ValueError("El nombre no puede ser numérico")
@@ -71,18 +70,20 @@ async def crear_tipo_usuario(
             }
         )
 
-#Obtener todos los tipos de usuarioss
+#Obtener todos los tipos de usuarios
 @router.get("/tipousuario", response_model=List[TipoUsuarioResponse])
-async def obtener_tipos_usuario(db: Session = Depends(get_db)):
-    tipos_usuario = db.query(TipoUsuario).all()
-    return tipos_usuario
+async def obtener_tipos_usuario(db: AsyncSession = Depends(get_db)):
+    async with db as session:
+        result = await session.execute(select(TipoUsuario))
+        tipos_usuario = result.scalars().all()
+        return tipos_usuario
 
 #Obtener un tipo de usuario por su id
 @router.get("/tipousuario/{id}", response_model=TipoUsuarioResponse)
 async def obtener_tipo_usuario_por_id(id: int, db: AsyncSession = Depends(get_db)):
     # Execute async query
     result = await db.execute(
-        select(TipoUsuario).where(TipoUsuario.id == id)
+        select(TipoUsuario).where(TipoUsuario.IdTipoUsuario == id)
     )
     tipo_usuario = result.scalars().first()
     
@@ -95,23 +96,29 @@ async def obtener_tipo_usuario_por_id(id: int, db: AsyncSession = Depends(get_db
 
 #Actualizar un tipo de usuario
 @router.put("/tipousuario/{id}", response_model=TipoUsuarioResponse)
-async def actualizar_tipo_usuario(id: int, tipoUsuarioParam: TipoUsuarioCreate, db: Session = Depends(get_db)):
-    tipousuario = db.query(TipoUsuario).filter(TipoUsuario.IdTipoUsuario == id).first()
-    if tipousuario is None:
-        raise HTTPException(status_code=404, detail="No existe el tipo de usuario")
-    tipousuario.NombreTipoUsuario = tipoUsuarioParam.NombreTipoUsuario  # ← Usa el nombre correcto
-    db.commit()
-    db.refresh(tipousuario)
-    return tipousuario
+async def actualizar_tipo_usuario(id: int, tipoUsuarioParam: TipoUsuarioCreate, db: AsyncSession = Depends(get_db)):
+    async with db as session:
+        result = await session.execute(select(TipoUsuario).where(TipoUsuario.IdTipoUsuario == id))
+        tipousuario = result.scalars().first()
+        if tipousuario is None:
+            raise HTTPException(status_code=404, detail="No existe el tipo de usuario")
+        
+        tipousuario.NombreTipoUsuario = tipoUsuarioParam.NombreTipoUsuario
+        
+        await session.commit()
+        await session.refresh(tipousuario)
+        return tipousuario
 
 #Eliminar un tipo de usuario
 @router.delete("/tipousuario/{id}", response_model=TipoUsuarioResponse)
-async def eliminar_tipo_usuario(id: int, db: Session = Depends(get_db)):
-    tipo_usuario = db.query(TipoUsuario).filter(TipoUsuario.IdTipoUsuario == id).first()
-    if tipo_usuario is None:
-        raise HTTPException(status_code=404, detail="No existe el tipo de usuario")
+async def eliminar_tipo_usuario(id: int, db: AsyncSession = Depends(get_db)):
+    async with db as session:
+        result = await session.execute(select(TipoUsuario).where(TipoUsuario.IdTipoUsuario == id))
+        tipo_usuario = result.scalars().first()
+        if tipo_usuario is None:
+            raise HTTPException(status_code=404, detail="No existe el tipo de usuario")
 
-    db.delete(tipo_usuario)
-    db.commit()
-    
-    return tipo_usuario  # ← Devuelve el objeto antes de eliminarlo en la sesión
+        await session.delete(tipo_usuario)
+        await session.commit()
+
+        return tipo_usuario

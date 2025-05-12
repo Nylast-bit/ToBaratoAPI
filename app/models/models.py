@@ -1,22 +1,27 @@
 from sqlalchemy import Column, Integer, String, Boolean, DateTime, ForeignKey, Numeric, Text, PrimaryKeyConstraint, ForeignKeyConstraint
 from sqlalchemy.orm import relationship, declarative_base
 from app.database import Base
-from app.utils import now_bolivia
+from datetime import datetime
+import pytz
+
+
+def now_bolivia():
+    return datetime.now(pytz.timezone('America/La_Paz'))
 
 class TipoUsuario(Base):
     __tablename__ = 'TipoUsuario'
     
     IdTipoUsuario = Column(Integer, primary_key=True, autoincrement=True)
     NombreTipoUsuario = Column(String(100), nullable=False)
-    FechaCreacion = Column(DateTime, default=now_bolivia)
+    FechaCreacion = Column(DateTime(timezone=True), default=now_bolivia)
     
     Usuarios = relationship("Usuario", back_populates="TipoUsuario")
 
 class TipoProveedor(Base):
     __tablename__ = 'TipoProveedor'
     
-    Id = Column(Integer, primary_key=True, autoincrement=True)
-    Nombre = Column(String(100), nullable=False)
+    IdTipoProveedor = Column(Integer, primary_key=True, autoincrement=True)
+    NombreTipoProveedor = Column(String(100), nullable=False)
     FechaCreacion = Column(DateTime, default=now_bolivia)
     
     Proveedores = relationship("Proveedor", back_populates="TipoProveedor")
@@ -24,8 +29,8 @@ class TipoProveedor(Base):
 class Categoria(Base):
     __tablename__ = 'Categoria'
     
-    Id = Column(Integer, primary_key=True, autoincrement=True)
-    Nombre = Column(String(100), nullable=False)
+    IdCategoria = Column(Integer, primary_key=True, autoincrement=True)
+    NombreCategoria = Column(String(100), nullable=False)
     FechaCreacion = Column(DateTime, default=now_bolivia)
     
     Productos = relationship("Producto", back_populates="Categoria")
@@ -33,8 +38,8 @@ class Categoria(Base):
 class UnidadMedida(Base):
     __tablename__ = 'UnidadMedida'
     
-    Id = Column(Integer, primary_key=True, autoincrement=True)
-    Nombre = Column(String(100), nullable=False)
+    IdUnidadMedida = Column(Integer, primary_key=True, autoincrement=True)
+    NombreUnidadMedida = Column(String(100), nullable=False)
     FechaCreacion = Column(DateTime, default=now_bolivia)
     
     Productos = relationship("Producto", back_populates="UnidadMedida")
@@ -62,10 +67,10 @@ class Usuario(Base):
 class Proveedor(Base):
     __tablename__ = 'Proveedor'
     
-    Id = Column(Integer, primary_key=True, autoincrement=True)
-    TipoProveedorId = Column(Integer, ForeignKey('TipoProveedor.Id'), nullable=False)
+    IdProveedor = Column(Integer, primary_key=True, autoincrement=True)
+    IdTipoProveedor = Column(Integer, ForeignKey('TipoProveedor.IdTipoProveedor'), nullable=False)
     Nombre = Column(String(100), nullable=False)
-    UrlLogo = Column(Text, nullable=False)
+    UrlLogo = Column(Text, nullable=False)#
     UrlPaginaWeb = Column(Text)
     EnvioDomicilio = Column(Boolean)
     FechaCreacion = Column(DateTime, default=now_bolivia)
@@ -79,9 +84,9 @@ class Proveedor(Base):
 class Sucursal(Base):
     __tablename__ = 'Sucursal'
     
-    Id = Column(Integer, primary_key=True, autoincrement=True)
-    ProveedorId = Column(Integer, ForeignKey('Proveedor.Id'), nullable=False)
-    Nombre = Column(String(100), nullable=False)
+    IdSucursal = Column(Integer, primary_key=True, autoincrement=True)
+    IdProveedor = Column(Integer, ForeignKey('Proveedor.IdProveedor'), nullable=False)
+    NombreSucursal = Column(String(100), nullable=False)
     Latitud = Column(String(50), nullable=False)
     Longitud = Column(String(50), nullable=False)
     FechaCreacion = Column(DateTime, default=now_bolivia)
@@ -92,9 +97,9 @@ class Sucursal(Base):
 class Producto(Base):
     __tablename__ = 'Producto'
     
-    Id = Column(Integer, primary_key=True, autoincrement=True)
-    CategoriaId = Column(Integer, ForeignKey('Categoria.Id'), nullable=False)
-    UnidadMedidaId = Column(Integer, ForeignKey('UnidadMedida.Id'), nullable=False)
+    IdProducto = Column(Integer, primary_key=True, autoincrement=True)
+    IdCategoria = Column(Integer, ForeignKey('Categoria.IdCategoria'), nullable=False)
+    IdUnidadMedida = Column(Integer, ForeignKey('UnidadMedida.IdUnidadMedida'), nullable=False)
     Nombre = Column(String(100), nullable=False)
     UrlImagen = Column(Text, nullable=False)
     Descripcion = Column(Text)
@@ -108,9 +113,9 @@ class Producto(Base):
 class Lista(Base):
     __tablename__ = 'Lista'
     
-    Id = Column(Integer, primary_key=True, autoincrement=True)
-    UsuarioId = Column(Integer, ForeignKey('Usuario.IdUsuario'), nullable=False)
-    ProveedorId = Column(Integer, ForeignKey('Proveedor.Id'), nullable=False)
+    IdLista = Column(Integer, primary_key=True, autoincrement=True)
+    IdUsuario = Column(Integer, ForeignKey('Usuario.IdUsuario'), nullable=False)
+    IdProveedor = Column(Integer, ForeignKey('Proveedor.IdProveedor'), nullable=False)
     Nombre = Column(String(100), nullable=False)
     PrecioTotal = Column(Numeric(10, 2), nullable=False, default=0.00)
     FechaCreacion = Column(DateTime, default=now_bolivia)
@@ -122,13 +127,13 @@ class Lista(Base):
 class ListaProducto(Base):
     __tablename__ = 'ListaProducto'
     __table_args__ = (
-        PrimaryKeyConstraint('ListaId', 'ProductoId'),
-        ForeignKeyConstraint(['ListaId'], ['Lista.Id']),
-        ForeignKeyConstraint(['ProductoId'], ['Producto.Id']),
+        PrimaryKeyConstraint('IdLista', 'IdProducto'),
+        ForeignKeyConstraint(['IdLista'], ['Lista.IdLista']),
+        ForeignKeyConstraint(['IdProducto'], ['Producto.IdProducto']),
     )
     
-    ListaId = Column(Integer)
-    ProductoId = Column(Integer)
+    IdLista = Column(Integer)
+    IdProducto = Column(Integer)
     PrecioActual = Column(Numeric(10, 2), nullable=False)
     Cantidad = Column(Integer, nullable=False, default=1)
     
@@ -138,12 +143,12 @@ class ListaProducto(Base):
 class UsuarioProveedor(Base):
     __tablename__ = 'UsuarioProveedor'
     __table_args__ = (
-        PrimaryKeyConstraint('ProveedorId', 'UsuarioId'),
+        PrimaryKeyConstraint('IdProveedor', 'IdUsuario'),
     )
     
-    ProveedorId = Column(Integer, ForeignKey('Proveedor.Id'))
-    UsuarioId = Column(Integer, ForeignKey('Usuario.IdUsuario'))
-    SucursalId = Column(Integer, ForeignKey('Sucursal.Id'), nullable=False)
+    IdProveedor = Column(Integer, ForeignKey('Proveedor.IdProveedor'))
+    IdUsuario = Column(Integer, ForeignKey('Usuario.IdUsuario'))
+    IdSucursal = Column("SucursalId",Integer, ForeignKey('Sucursal.IdSucursal'), nullable=False)
     ProductosComprados = Column(Integer, nullable=False, default=0)
     FechaUltimaCompra = Column(DateTime)
     Preferencia = Column(Boolean, nullable=False, default=False)
@@ -155,11 +160,11 @@ class UsuarioProveedor(Base):
 class ProductoProveedor(Base):
     __tablename__ = 'ProductoProveedor'
     __table_args__ = (
-        PrimaryKeyConstraint('ProductoId', 'ProveedorId'),
+        PrimaryKeyConstraint('IdProducto', 'IdProveedor'),
     )
     
-    ProductoId = Column(Integer, ForeignKey('Producto.Id'))
-    ProveedorId = Column(Integer, ForeignKey('Proveedor.Id'))
+    IdProducto = Column(Integer, ForeignKey('Producto.IdProducto'))
+    IdProveedor = Column(Integer, ForeignKey('Proveedor.IdProveedor'))
     Precio = Column(Numeric(10, 2), nullable=False)
     PrecioOferta = Column(Numeric(10, 2))
     DescripcionOferta = Column(Text)

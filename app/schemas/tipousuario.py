@@ -6,7 +6,7 @@ class TipoUsuarioBase(BaseModel):
     NombreTipoUsuario: str = Field(..., alias="nombre") # ← Debe coincidir con el modelo SQLAlchemy
 
 class TipoUsuarioCreate(BaseModel):
-    nombre: str = Field(..., min_length=3, max_length=100)  # Coincide con el JSON que envías
+    NombreTipoUsuario: str = Field(..., min_length=3, max_length=100)  # Coincide con el JSON que envías
 
 class TipoUsuarioResponse(BaseModel):
     id: int = Field(..., alias="IdTipoUsuario")  # Mapea IdTipoUsuario de SQLAlchemy a id

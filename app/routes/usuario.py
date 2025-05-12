@@ -13,9 +13,13 @@ from app.database import AsyncSessionLocal
 from app.auth.dependencies import AccessTokenBearer, RefreshTokenBearer
 from fastapi.responses import JSONResponse
 
+import re
+from sqlalchemy.future import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
 
 router = APIRouter()
-REFRESH_TOKEN_EXPIRY = 2 
+REFRESH_TOKEN_EXPIRY = 3600 
 access_token_bearer = AccessTokenBearer()
 refresh_token_bearer = RefreshTokenBearer()
 
@@ -52,7 +56,7 @@ async def crear_usuario(usuario: UsuarioCreate, db: AsyncSession = Depends(get_d
     
     # 2. Verificar tipo de usuario (forma asíncrona)
     result = await db.execute(
-        select(TipoUsuario).where(TipoUsuario.Id == usuario.IdTipoUsuario)
+        select(TipoUsuario).where(TipoUsuario.IdTipoUsuario == usuario.IdTipoUsuario)
     )
     if not result.scalars().first():
         raise HTTPException(
@@ -78,6 +82,8 @@ async def crear_usuario(usuario: UsuarioCreate, db: AsyncSession = Depends(get_d
             Estado=usuario.Estado,
             FechaNacimiento=usuario.FechaNacimiento,
             UrlPerfil=usuario.UrlPerfil,
+            FechaCreacion=datetime.now().replace(tzinfo=None)  # <-- quita la zona horaria
+
         )
         
         db.add(nuevo_usuario)
@@ -144,16 +150,20 @@ async def login_user(
         )
     )
 
+
 @router.get("/refresh_token")
-async def get_new_access_token(token_details:dict = Depends(refresh_token_bearer)): 
+async def get_new_access_token(token_details: dict = Depends(refresh_token_bearer)):
     expiry_timestamp = token_details['exp']
 
     if datetime.fromtimestamp(expiry_timestamp) > datetime.now():
-        new_access_token = createAccessToken(
-            usuario={token_details['IdUsuario'],
-                     token_details['Correo'],
-                     token_details['NombreUsuario']},
+        # Crear instancia de Usuario con solo los campos necesarios
+        usuario = Usuario(
+            IdUsuario=token_details['IdUsuario'],
+            Correo=token_details['Correo'],
+            NombreUsuario=token_details['NombreUsuario']
         )
+
+        new_access_token = createAccessToken(usuario=usuario)
 
         return JSONResponse(
             content={"access_token": new_access_token, "token_type": "bearer"},
@@ -162,8 +172,8 @@ async def get_new_access_token(token_details:dict = Depends(refresh_token_bearer
 
     raise HTTPException(
         status_code=status.HTTP_400_BAD_REQUEST,
-        detail="El token de actualizado ha expirado o no es válido"
-        )
+        detail="El token de actualización ha expirado o no es válido"
+    )
 
 #Obtener todos los usuarios
 @router.get("/usuario", response_model=List[UsuarioResponse])
@@ -173,109 +183,135 @@ async def obtener_usuario(db: AsyncSession = Depends(get_db), user_details=Depen
         return result.scalars().all()
     
 #Obtener un usuario por su id
+
+
 @router.get("/usuario/{id}", response_model=UsuarioResponse)
-async def obtener_unidadmedida_por_id(id: int, db: Session = Depends(get_db)):
-    usuario = db.query(Usuario).filter(Usuario.IdUsuario == id).first()
-    if usuario is None:
-        raise HTTPException(status_code=404, detail="No existe esa unidad de medida")
-    return usuario
+async def obtener_usuario_por_id(id: int, db: AsyncSession = Depends(get_db)):
+    async with db as session:
+        result = await session.execute(select(Usuario).where(Usuario.IdUsuario == id))
+        usuario = result.scalars().first()
+        if usuario is None:
+            raise HTTPException(status_code=404, detail="No existe esa unidad de medida")
+        return usuario
+
 
 
 #Actualizar un usuario
 @router.put("/usuario/{id}", response_model=UsuarioResponse)
-async def actualizar_usuario(id: int, usuarioParam: UsuarioUpdate, db: Session = Depends(get_db)):
-    # 1. Obtener usuario existente
-    usuario = db.query(Usuario).filter(Usuario.IdUsuario == id).first()
-    if not usuario:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail={"error": "Usuario no encontrado", "id": id}
-        )
-    
+async def actualizar_usuario(id: int, usuarioParam: UsuarioUpdate, db: AsyncSession = Depends(get_db)):
     try:
-        # 2. Obtener solo los campos proporcionados (ignorar None)
+        # 1. Buscar usuario existente
+        result = await db.execute(select(Usuario).where(Usuario.IdUsuario == id))
+        usuario = result.scalars().first()
+
+        if not usuario:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail={"error": "Usuario no encontrado", "id": id}
+            )
+
+        # 2. Obtener solo campos modificados (excluyendo los que no se enviaron)
         update_data = usuarioParam.model_dump(exclude_unset=True)
-        
-        
+
+        # 3. Validaciones
         if "Correo" in update_data:
-            # Validar que el correo no esté en uso por otro usuario
-            if db.query(Usuario).filter(
-                Usuario.Correo == update_data["Correo"],
-                Usuario.IdUsuario != id
-            ).first():
+            # Verificar formato de correo
+            if not re.match(r"[^@]+@[^@]+\.[^@]+", update_data["Correo"]):
+                raise ValueError("El correo electrónico no tiene un formato válido")
+
+            # Verificar duplicado
+            result = await db.execute(
+                select(Usuario).where(
+                    Usuario.Correo == update_data["Correo"],
+                    Usuario.IdUsuario != id
+                )
+            )
+            if result.scalars().first():
                 raise ValueError("El correo ya está registrado por otro usuario")
-        
+
         if "Telefono" in update_data:
-            # Validar formato de teléfono
             if not update_data["Telefono"].isdigit():
                 raise ValueError("El teléfono debe contener solo números")
-        
+
+        if "NombreUsuario" in update_data:
+            result = await db.execute(
+                select(Usuario).where(
+                    Usuario.NombreUsuario == update_data["NombreUsuario"],
+                    Usuario.IdUsuario != id
+                )
+            )
+            if result.scalars().first():
+                raise ValueError("El nombre de usuario ya está en uso")
+
         # 4. Aplicar actualizaciones
         for field, value in update_data.items():
             setattr(usuario, field, value)
-        
-        db.commit()
-        db.refresh(usuario)
+
+        await db.commit()
+        await db.refresh(usuario)
         return usuario
-        
+
     except ValueError as ve:
-        db.rollback()
+        await db.rollback()
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail={"error": "Error de validación", "message": str(ve)}
         )
     except Exception as e:
-        db.rollback()
+        await db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail={"error": "Error al actualizar usuario", "details": str(e)}
         )
-
 
 #Eliminar un usuario
 @router.delete("/usuario/{id}", response_model=UsuarioResponse)
-async def eliminar_usuario(id: int, db: Session = Depends(get_db)):
-    usuario = db.query(Usuario).filter(Usuario.IdUsuario == id).first()
-    if usuario is None:
-        raise HTTPException(status_code=404, detail="No existe ese usuario")
+async def eliminar_usuario(id: int, db: AsyncSession = Depends(get_db)):
+    async with db as session:
+        result = await session.execute(select(Usuario).where(Usuario.IdUsuario == id))
+        usuario = result.scalars().first()
 
-    db.delete(usuario)
-    db.commit()
-    
-    return usuario  # ← Devuelve el objeto antes de eliminarlo en la sesión
+        if usuario is None:
+            raise HTTPException(status_code=404, detail="No existe ese usuario")
+
+        await session.delete(usuario)
+        await session.commit()
+
+        return usuario  # ← Devuelve el objeto antes de eliminarlo en la sesión
 
 @router.put("/change-password", response_model=UsuarioResponse)
-async def cambiar_contraseña(datos: UsuarioUpdatePassword, db: Session = Depends(get_db)):
-    # Buscar al usuario
-    usuario_db = db.query(Usuario).filter(Usuario.IdUsuario == datos.IdUsuario).first()
-    if not usuario_db:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail={"error": "Usuario no encontrado", "id": datos.IdUsuario}
-        )
-
-    # Verificar la clave actual
-    if not verify_password(datos.Clave, usuario_db.Clave):
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail={"error": "La clave actual no es correcta"}
-        )
-
-    # Actualizar la contraseña
+async def cambiar_contraseña(datos: UsuarioUpdatePassword, db: AsyncSession = Depends(get_db)):
     try:
+        # Buscar al usuario por ID
+        result = await db.execute(select(Usuario).where(Usuario.IdUsuario == datos.IdUsuario))
+        usuario_db = result.scalars().first()
+
+        if not usuario_db:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail={"error": "Usuario no encontrado", "id": datos.IdUsuario}
+            )
+
+        # Verificar la clave actual
+        if not verify_password(datos.Clave, usuario_db.Clave):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail={"error": "La clave actual no es correcta"}
+            )
+
+        # Actualizar la clave nueva
         usuario_db.Clave = hash_password(datos.ClaveNueva)
-        db.commit()
-        db.refresh(usuario_db)
-        return {"message": "Usuario actualizado con éxito"}
+        await db.commit()
+        await db.refresh(usuario_db)
+
+        return usuario_db
 
     except Exception as e:
-        db.rollback()
+        await db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail={"error": "Error al actualizar usuario", "details": str(e)}
+            detail={"error": "Error al actualizar contraseña", "details": str(e)}
         )
-    
-        
        
 
 #Hashar la contraseña
