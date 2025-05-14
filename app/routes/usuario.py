@@ -276,7 +276,7 @@ async def eliminar_usuario(id: int, db: AsyncSession = Depends(get_db)):
 
         await session.delete(usuario)
         await session.commit()
-
+#
         return usuario  # ← Devuelve el objeto antes de eliminarlo en la sesión
 
 @router.put("/change-password", response_model=UsuarioResponse)

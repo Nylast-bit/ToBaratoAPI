@@ -6,6 +6,7 @@ from app.schemas.proveedor import ProveedorCreate, ProveedorResponse, ProveedorU
 from app.database import AsyncSessionLocal
 from sqlalchemy.future import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from datetime import datetime
 
 
 
@@ -82,7 +83,8 @@ async def crear_proveedor(proveedorParam: ProveedorCreate, db: AsyncSession = De
                 Nombre=proveedorParam.Nombre.strip(),  # Aseguramos que no haya espacios innecesarios
                 UrlLogo=proveedorParam.UrlLogo,
                 UrlPaginaWeb=proveedorParam.UrlPaginaWeb,
-                EnvioDomicilio=proveedorParam.EnvioDomicilio
+                EnvioDomicilio=proveedorParam.EnvioDomicilio,
+                FechaCreacion=datetime.now().replace(tzinfo=None)
             )
             
             session.add(nuevo_proveedor)

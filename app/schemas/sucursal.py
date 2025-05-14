@@ -6,8 +6,8 @@ import pytz
 class SucursalBase(BaseModel):
     IdProveedor: int = Field(..., alias="IdProveedor")
     NombreSucursal: str = Field(..., alias="NombreSucursal", max_length=100)
-    latitud: str = Field(..., alias="latitud", max_length=300)
-    longitud: str = Field(..., alias="longitud", max_length=300)
+    latitud: str = Field(..., alias="Latitud")
+    longitud: str = Field(..., alias="Longitud")
 
 class SucursalCreate(SucursalBase):
     @field_validator('NombreSucursal')
@@ -17,16 +17,6 @@ class SucursalCreate(SucursalBase):
             raise ValueError("El nombre debe tener al menos 3 caracteres")
         return v
 
-    @field_validator('latitud', 'longitud')
-    def validar_coordenadas(cls, v):
-        if not v.strip():
-            raise ValueError("Las coordenadas no pueden estar vacías")
-        try:
-            # Basic validation for coordinate format
-            float(v)
-        except ValueError:
-            raise ValueError("Las coordenadas deben ser valores numéricos")
-        return v
 
 class SucursalUpdate(BaseModel):
     IdProveedor: Optional[int] = Field(None, alias="IdProveedor")

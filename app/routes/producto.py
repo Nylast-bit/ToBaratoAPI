@@ -6,6 +6,7 @@ from app.schemas.producto import ProductoCreate, ProductoResponse, ProductoUpdat
 from app.database import AsyncSessionLocal
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
+from datetime import datetime
 
 
 router = APIRouter()
@@ -49,7 +50,9 @@ async def crear_producto(productoParam: ProductoCreate, db: Session = Depends(ge
             IdUnidadMedida = productoParam.IdUnidadMedida,
             Nombre = productoParam.Nombre,
             UrlImagen = productoParam.UrlImagen,
-            Descripcion = productoParam.Descripcion
+            Descripcion = productoParam.Descripcion,
+            FechaCreacion=datetime.now().replace(tzinfo=None)
+            
         )
 
         # Añadir el producto y realizar commit
@@ -84,11 +87,20 @@ async def obtener_productos(db: AsyncSession = Depends(get_db)):
 
 # Obtener un producto por su id
 @router.get("/producto/{id}", response_model=ProductoResponse)
-async def obtener_producto_por_id(id: int, db: Session = Depends(get_db)):
-    producto = db.query(Producto).filter(Producto.IdProducto == id).first()
-    if producto is None:
-        raise HTTPException(status_code=404, detail="No existe el producto")
-    return producto
+async def obtener_producto_por_id(id: int, db: AsyncSession = Depends(get_db)):
+    try:
+        # Obtener el producto asincrónicamente
+        result = await db.execute(select(Producto).where(Producto.IdProducto == id))
+        producto = result.scalar_one_or_none()
+
+        if producto is None:
+            raise HTTPException(status_code=404, detail="No existe el producto")
+
+        return producto
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error al obtener el producto: {str(e)}")
+
 
 # Actualizar un producto
 @router.put("/producto/{id}", response_model=ProductoResponse)
@@ -145,22 +157,38 @@ async def actualizar_producto(id: int, productoParam: ProductoUpdate, db: Sessio
     
 # Eliminar un producto
 @router.delete("/producto/{id}", response_model=ProductoResponse)
-async def eliminar_producto(id: int, db: Session = Depends(get_db)):
-    producto = db.query(Producto).filter(Producto.IdProducto == id).first()
+async def eliminar_producto(id: int, db: AsyncSession = Depends(get_db)):
+    # Obtener el producto por id
+    result = await db.execute(select(Producto).where(Producto.IdProducto == id))
+    producto = result.scalar_one_or_none()
+
     if producto is None:
         raise HTTPException(status_code=404, detail="No existe el producto")
 
-    db.delete(producto)
-    db.commit()
+    try:
+        # Eliminar el producto
+        await db.delete(producto)
+        await db.commit()
     
-    return producto  # ← Devuelve el objeto antes de eliminarlo en la sesión
+        return producto  # Devuelve el producto antes de eliminarlo
+
+    except Exception as e:
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail={"error": "Error al eliminar producto", "details": str(e)}
+        )
 
 
 # Obtener productos por categoria
 @router.get("/producto/categoria/{id}", response_model=List[ProductoResponse])
-async def obtener_productos_por_categoria(id: int, db: Session = Depends(get_db)):
-    productos = db.query(Producto).filter(Producto.CategoriaId == id).all()
+async def obtener_productos_por_categoria(id: int, db: AsyncSession = Depends(get_db)):
+    # Realizar la consulta asincrónica para obtener los productos
+    result = await db.execute(select(Producto).where(Producto.IdCategoria == id))
+    productos = result.scalars().all()  # Obtener todos los productos de la categoría
+    
     if not productos:
         raise HTTPException(status_code=404, detail="No se encontraron productos para esta categoría")
+    
     return productos
 

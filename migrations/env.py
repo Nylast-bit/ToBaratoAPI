@@ -1,65 +1,40 @@
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker, declarative_base, Session
 import os
-import sys
-from pathlib import Path
-from logging.config import fileConfig
-from sqlalchemy import engine_from_config, pool
-from alembic import context
+from dotenv import load_dotenv
+import asyncio
 
-# --- Configuración crítica de paths ---
-# Añade el directorio raíz del proyecto al PYTHONPATH
-from pathlib import Path
-import sys
 
-# Añade el directorio raíz (To-Barato-API) al sys.path
-sys.path.append(str(Path(__file__).resolve().parents[1]))
-# Importa después de configurar el path
-from app.models.models import Base  # Asegúrate que esta ruta sea correcta
-from app.database import engine  # Importa tu engine configurado
+load_dotenv()
 
-# --- Configuración de Alembic ---
-config = context.config
-target_metadata = Base.metadata
+# Usa el driver estándar de SQLAlchemy en la URL
+URL_DATABASE = "postgresql://postgres:tzAo3bevuc9kU6F6kY651qcnyqGXuQEn0DbYNtGNjX37zLPeH4AdauGmYqVG5OSK@190.166.156.93:5432/postgres"
 
-# Configuración de logging
-if config.config_file_name:
-    fileConfig(config.config_file_name)
+if not URL_DATABASE:
+    raise ValueError("La URL de la base de datos no está configurada")
 
-# --- Funciones de migración ---
-def run_migrations_offline():
-    """Ejecuta migraciones en modo offline (sin conexión a BD)."""
-    url = config.get_main_option("sqlalchemy.url")
-    context.configure(
-        url=url,
-        target_metadata=target_metadata,
-        literal_binds=True,
-        dialect_opts={"paramstyle": "named"},
-        compare_type=True,
-        compare_server_default=True,
-        include_schemas=True
-    )
+# ✅ Motor Síncrono (para Alembic)
+engine = create_engine(URL_DATABASE, echo=True)
 
-    with context.begin_transaction():
-        context.run_migrations()
+# ✅ Sesión Síncrona (para Alembic)
+SessionLocal = sessionmaker(
+    bind=engine,
+    expire_on_commit=False,
+    class_=Session,  # Usamos la clase de Session sincrónica
+    autoflush=False,
+    autocommit=False,
+)
 
-def run_migrations_online():
-    """Ejecuta migraciones en modo online (con conexión a BD)."""
-    # Usa el engine directamente en lugar de engine_from_config
-    connectable = engine
+# Base declarativa
+Base = declarative_base()
 
-    with connectable.connect() as connection:
-        context.configure(
-            connection=connection,
-            target_metadata=target_metadata,
-            compare_type=True,
-            compare_server_default=True,
-            include_schemas=True
-        )
+# Función para inicializar la base de datos
+def init_db():
+    with engine.begin() as conn:
+        # Crear todas las tablas en la base de datos
+        Base.metadata.create_all(bind=conn, checkfirst=True)
 
-        with context.begin_transaction():
-            context.run_migrations()
-
-# --- Ejecución principal ---
-if context.is_offline_mode():
-    run_migrations_offline()
-else:
-    run_migrations_online()
+# Ejemplo de cómo usarlo en tu aplicación principal
+if __name__ == "__main__":
+    init_db()
+    print("Database initialized!")

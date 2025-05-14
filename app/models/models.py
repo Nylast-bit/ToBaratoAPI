@@ -70,7 +70,7 @@ class Proveedor(Base):
     IdProveedor = Column(Integer, primary_key=True, autoincrement=True)
     IdTipoProveedor = Column(Integer, ForeignKey('TipoProveedor.IdTipoProveedor'), nullable=False)
     Nombre = Column(String(100), nullable=False)
-    UrlLogo = Column(Text, nullable=False)#
+    UrlLogo = Column(Text, nullable=True)
     UrlPaginaWeb = Column(Text)
     EnvioDomicilio = Column(Boolean)
     FechaCreacion = Column(DateTime, default=now_bolivia)
@@ -87,12 +87,11 @@ class Sucursal(Base):
     IdSucursal = Column(Integer, primary_key=True, autoincrement=True)
     IdProveedor = Column(Integer, ForeignKey('Proveedor.IdProveedor'), nullable=False)
     NombreSucursal = Column(String(100), nullable=False)
-    Latitud = Column(String(50), nullable=False)
-    Longitud = Column(String(50), nullable=False)
+    Latitud = Column("latitud", String(100), nullable=False)
+    Longitud = Column("longitud", String(100), nullable=False)
     FechaCreacion = Column(DateTime, default=now_bolivia)
     
     Proveedor = relationship("Proveedor", back_populates="Sucursales")
-    UsuarioProveedores = relationship("UsuarioProveedor", back_populates="Sucursal")
 
 class Producto(Base):
     __tablename__ = 'Producto'
@@ -142,20 +141,21 @@ class ListaProducto(Base):
 
 class UsuarioProveedor(Base):
     __tablename__ = 'UsuarioProveedor'
-    __table_args__ = (
-        PrimaryKeyConstraint('IdProveedor', 'IdUsuario'),
-    )
     
+    # Nueva clave primaria única
+    IdUsuarioProveedor = Column(Integer, primary_key=True, autoincrement=True)
     IdProveedor = Column(Integer, ForeignKey('Proveedor.IdProveedor'))
     IdUsuario = Column(Integer, ForeignKey('Usuario.IdUsuario'))
-    IdSucursal = Column("SucursalId",Integer, ForeignKey('Sucursal.IdSucursal'), nullable=False)
     ProductosComprados = Column(Integer, nullable=False, default=0)
     FechaUltimaCompra = Column(DateTime)
     Preferencia = Column(Boolean, nullable=False, default=False)
     
+    # Relación con otras tablas
     Proveedor = relationship("Proveedor", back_populates="Usuarios")
     Usuario = relationship("Usuario", back_populates="Proveedores")
-    Sucursal = relationship("Sucursal", back_populates="UsuarioProveedores")
+
+
+
 
 class ProductoProveedor(Base):
     __tablename__ = 'ProductoProveedor'
