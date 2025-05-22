@@ -43,6 +43,18 @@ class SucursalUpdate(BaseModel):
                 raise ValueError("Las coordenadas deben ser valores numéricos")
         return v
 
+class ProductoSucursalResponse(BaseModel):
+    NombreSucursal: str
+    Latitud: float
+    Longitud: float
+    IdProveedor: int
+    Precio: float
+
+class UbicacionProductoRequest(BaseModel):
+    lat: float
+    lng: float
+    id_producto: int
+
 class SucursalResponse(SucursalBase):
     IdSucursal: int = Field(..., alias="IdSucursal")
     FechaCreacion: datetime = Field(..., alias="FechaCreacion")

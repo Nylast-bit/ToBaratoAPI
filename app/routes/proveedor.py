@@ -128,6 +128,8 @@ async def obtener_proveedor_por_id(id: int, db: AsyncSession = Depends(get_db)):
         return proveedor
 
 
+
+
 #Actualizar un proveedor
 @router.put("/proveedor/{id}", response_model=ProveedorResponse)
 async def actualizar_proveedor(id: int, proveedorParam: ProveedorUpdate, db: AsyncSession = Depends(get_db)):

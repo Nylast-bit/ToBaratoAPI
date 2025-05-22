@@ -1,12 +1,15 @@
-from fastapi import APIRouter, HTTPException, Depends, status
+from fastapi import APIRouter, HTTPException, Depends, status, Query
 from sqlalchemy.orm import Session
 from typing import List, Annotated
-from app.models.models import Sucursal, Proveedor
-from app.schemas.sucursal import SucursalCreate, SucursalResponse, SucursalUpdate
+from app.models.models import Sucursal, Proveedor, ProductoProveedor
+from app.schemas.sucursal import SucursalCreate, SucursalResponse, SucursalUpdate, UbicacionProductoRequest
 from app.database import AsyncSessionLocal
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from datetime import datetime
+from sqlalchemy import func
+from geopy.distance import geodesic
+
 
 
 
@@ -20,6 +23,10 @@ async def get_db():
         await db.close()
 
 db_dependency = Annotated[Session, Depends(get_db)]
+
+@router.get("/sucursalprueba")
+def test_sucursal():
+    return {"msg": "todo bien con sucursal"}
 
 # Crear una nueva sucursal
 @router.post("/sucursal", response_model=SucursalResponse, status_code=status.HTTP_201_CREATED)
@@ -58,27 +65,6 @@ async def crear_sucursal(sucursal: SucursalCreate, db: AsyncSession = Depends(ge
                 }
             )
 
-        # Validación de las coordenadas
-        # if not (-90 <= sucursal.latitud <= 90):
-        #     raise HTTPException(
-        #         status_code=status.HTTP_400_BAD_REQUEST,
-        #         detail={
-        #             "error": "Latitud fuera de rango",
-        #             "code": "INVALID_LATITUDE",
-        #             "field": "latitud",
-        #             "value": sucursal.latitud
-        #         }
-        #     )
-        # if not (-180 <= sucursal.longitud <= 180):
-        #     raise HTTPException(
-        #         status_code=status.HTTP_400_BAD_REQUEST,
-        #         detail={
-        #             "error": "Longitud fuera de rango",
-        #             "code": "INVALID_LONGITUDE",
-        #             "field": "longitud",
-        #             "value": sucursal.longitud
-        #         }
-        #     )
 
         # Crear y guardar la nueva sucursal
         nueva_sucursal = Sucursal(
@@ -237,3 +223,84 @@ async def eliminar_sucursal(id: int, db: AsyncSession = Depends(get_db)):
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail={"error": "Error al eliminar sucursal", "details": str(e)}
         )
+
+
+
+@router.post("/sucursal-cercana", response_model=list[UbicacionProductoRequest])
+async def obtener_producto_cercano(
+    datos: UbicacionProductoRequest,
+    db: AsyncSession = Depends(get_db)
+):
+    
+    lat = datos.lat
+    lng = datos.lng
+    id_producto = datos.id_producto
+
+    try:
+        # 1. Obtener todas las sucursales
+        result_sucursales = await db.execute(
+            select(
+                Sucursal.IdSucursal,
+                Sucursal.NombreSucursal,
+                Sucursal.Latitud,
+                Sucursal.Longitud,
+                Sucursal.IdProveedor
+            )
+        )
+        sucursales = result_sucursales.all()
+
+        if not sucursales:
+            raise HTTPException(status_code=404, detail="No hay sucursales registradas")
+
+        # 2. Calcular distancia a cada sucursal
+        sucursales_con_distancia = []
+        for s in sucursales:
+            distancia = geodesic((lat, lng), (s.Latitud, s.Longitud)).km
+            sucursales_con_distancia.append({
+                "IdSucursal": s.IdSucursal,
+                "NombreSucursal": s.NombreSucursal,
+                "Latitud": s.Latitud,
+                "Longitud": s.Longitud,
+                "IdProveedor": s.IdProveedor,
+                "Distancia": distancia
+            })
+
+        # 3. Ordenar por cercanía
+        sucursales_con_distancia.sort(key=lambda x: x["Distancia"])
+
+        # 4. Filtrar: solo una sucursal por proveedor (la más cercana)
+        proveedor_visto = set()
+        sucursales_filtradas = []
+        for suc in sucursales_con_distancia:
+            if suc["IdProveedor"] not in proveedor_visto:
+                proveedor_visto.add(suc["IdProveedor"])
+                sucursales_filtradas.append(suc)
+
+        # 5. Buscar precios del producto en esas sucursales únicas
+        resultados = []
+        for suc in sucursales_filtradas:
+            result_precio = await db.execute(
+                select(ProductoProveedor.Precio).where(
+                    ProductoProveedor.IdProveedor == suc["IdProveedor"],
+                    ProductoProveedor.IdProducto == id_producto
+                )
+            )
+            precio = result_precio.scalar()
+            if precio is not None:
+                resultados.append({
+                    "NombreSucursal": suc["NombreSucursal"],
+                    "Latitud": suc["Latitud"],
+                    "Longitud": suc["Longitud"],
+                    "IdProveedor": suc["IdProveedor"],
+                    "Precio": precio
+                })
+
+        if not resultados:
+            raise HTTPException(status_code=404, detail="No hay precios disponibles para ese producto")
+
+        # 6. Devolver los 3 precios más baratos de proveedores únicos
+        resultados.sort(key=lambda x: x["Precio"])
+        return resultados[:3]
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error al obtener precios cercanos: {str(e)}")
