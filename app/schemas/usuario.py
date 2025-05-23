@@ -9,7 +9,7 @@ class UsuarioBase(BaseModel):
     NombreUsuario: str = Field(..., alias="NombreUsuario")  # ← Debe coincidir con el modelo SQLAlchemy
     Correo: EmailStr = Field(..., alias="Correo")   # ← Debe coincidir con el modelo SQLAlchemy
     Telefono: str = Field(..., alias="Telefono") # ← Debe coincidir con el modelo SQLAlchemy
-    Clave: str = Field(..., alias="Clave")
+    Clave: str = Field(...,exclude=True, alias="Clave") # ← Debe coincidir con el modelo SQLAlchemy
     Nombres: str = Field(..., alias="Nombres")
     Apellidos: str = Field(..., alias="Apellidos")
     Estado: bool = Field(..., alias="Estado")
@@ -34,10 +34,35 @@ class UsuarioUpdate(BaseModel):
     UrlPerfil: Optional[str] = Field(None, alias="UrlPerfil")
     FechaNacimiento: Optional[datetime] = Field(None, alias="FechaNacimiento")
 
+class UsuarioLoginModel(BaseModel):
+    Correo: EmailStr = Field(..., alias="Correo")   # ← Debe coincidir con el modelo SQLAlchemy
+    Clave: str = Field(...,exclude=True, alias="Clave") # ← Debe coincidir con el modelo SQLAlchemy
+
+class UsuarioResponseModel(BaseModel):
+    id: int
+    email: EmailStr
+    nombre: str
+
+class TokenModel(BaseModel):
+    access_token: str
+    refresh_token: str
+    token_type: str = "bearer"
+
+class LoginResponseModel(BaseModel):
+    message: str
+    tokens: TokenModel
+    usuario: UsuarioResponseModel
+
+class TokenResponse(BaseModel):
+    access_token: str
+    refresh_token: str
+    token_type: str = "bearer"
+
 class UsuarioUpdatePassword(BaseModel):
     IdUsuario: int
     Clave: str
     ClaveNueva: str
+
 class UsuarioResponse(UsuarioBase):
     IdUsuario: int  # ← Nombre exacto como en el modelo
     FechaCreacion: datetime

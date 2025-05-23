@@ -42,3 +42,4 @@ class ListaProductoResponse(ListaProductoBase):
     # En este caso no agregamos campos adicionales ya que es una tabla de relación
     class Config:
         from_attributes = True
+        orm_mode = True

@@ -21,3 +21,9 @@ typing-inspection==0.4.0
 typing_extensions==4.13.1
 uvicorn==0.34.0
 python-multipart==0.0.20
+pyjwt==2.10.1
+sqlmodel==0.0.24
+asyncpg==0.30.0
+aiosmtplib==4.0.1
+email-validator==3.10
+geopy==2.4.0
