@@ -53,6 +53,11 @@ class LoginResponseModel(BaseModel):
     tokens: TokenModel
     usuario: UsuarioResponseModel
 
+class OTPCreate(BaseModel):
+    email: EmailStr
+    code: int
+    expires_at: datetime
+
 class TokenResponse(BaseModel):
     access_token: str
     refresh_token: str

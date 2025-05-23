@@ -49,7 +49,8 @@ class ProductoSucursalResponse(BaseModel):
     Longitud: float
     IdProveedor: int
     Precio: float
-
+    Distancia: float
+    
 class UbicacionProductoRequest(BaseModel):
     lat: float
     lng: float

@@ -2,7 +2,7 @@ from fastapi import APIRouter, HTTPException, Depends, status, Query
 from sqlalchemy.orm import Session
 from typing import List, Annotated
 from app.models.models import Sucursal, Proveedor, ProductoProveedor
-from app.schemas.sucursal import SucursalCreate, SucursalResponse, SucursalUpdate, UbicacionProductoRequest
+from app.schemas.sucursal import SucursalCreate, SucursalResponse, SucursalUpdate, UbicacionProductoRequest, ProductoSucursalResponse
 from app.database import AsyncSessionLocal
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
@@ -226,7 +226,7 @@ async def eliminar_sucursal(id: int, db: AsyncSession = Depends(get_db)):
 
 
 
-@router.post("/sucursal-cercana", response_model=list[UbicacionProductoRequest])
+@router.post("/sucursal-cercana", response_model=list[ProductoSucursalResponse])
 async def obtener_producto_cercano(
     datos: UbicacionProductoRequest,
     db: AsyncSession = Depends(get_db)
@@ -292,7 +292,9 @@ async def obtener_producto_cercano(
                     "Latitud": suc["Latitud"],
                     "Longitud": suc["Longitud"],
                     "IdProveedor": suc["IdProveedor"],
-                    "Precio": precio
+                    "Precio": precio,
+                    "Distancia": round(suc["Distancia"], 2)
+
                 })
 
         if not resultados:

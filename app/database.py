@@ -7,7 +7,7 @@ import asyncio
 load_dotenv()
 
 # Usa el driver asyncpg en la URL
-URL_DATABASE = "postgresql+asyncpg://postgres:tzAo3bevuc9kU6F6kY651qcnyqGXuQEn0DbYNtGNjX37zLPeH4AdauGmYqVG5OSK@190.166.151.207:5432/postgres"
+URL_DATABASE = "postgresql+asyncpg://postgres:tzAo3bevuc9kU6F6kY651qcnyqGXuQEn0DbYNtGNjX37zLPeH4AdauGmYqVG5OSK@200.88.206.146:5432/postgres"
 
 if not URL_DATABASE:
     raise ValueError("La URL de la base de datos no está configurada")

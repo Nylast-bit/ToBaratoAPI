@@ -84,10 +84,10 @@ async def crear_usuario(usuario: UsuarioCreate, db: AsyncSession = Depends(get_d
     )
     otp = otp_result.scalars().first()
 
-    if not otp or otp.ExpiresAt < datetime.utcnow():
+    if not otp :
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail={
+                detail={
                 "error": "OTP inválido o expirado",
                 "code": "OTP_INVALID_OR_EXPIRED"
             }
@@ -205,7 +205,13 @@ async def obtener_usuario(db: AsyncSession = Depends(get_db), user_details=Depen
         result = await session.execute(select(Usuario))
         return result.scalars().all()
     
-
+#Obtener todos los usuarios
+@router.get("/otp", response_model=List[UsuarioResponse])
+async def obtener_usuario(db: AsyncSession = Depends(get_db), user_details=Depends(access_token_bearer)):
+    async with db as session:
+        result = await session.execute(select(OTP))
+        return result.scalars().all()
+    
 #Obtener un usuario por su id
 @router.get("/usuario/{id}", response_model=UsuarioResponse)
 async def obtener_usuario_por_id(id: int, db: AsyncSession = Depends(get_db)):
@@ -432,13 +438,13 @@ async def solicitar_otp(email: EmailStr, db: AsyncSession = Depends(get_db)):
         raise HTTPException(status_code=400, detail="El correo ya está registrado.")
 
     code = generar_codigo_otp()
-    expires_at = datetime.utcnow() + timedelta(minutes=10)
+    expires_at = datetime.now() + timedelta(minutes=10)
 
     nuevo_otp = OTP(Email=email, Code=code, ExpiresAt=expires_at)
     db.add(nuevo_otp)
     await db.commit()
 
-    enviar_correo_otp(email, code)  # Tu función de envío
+    await enviar_correo_otp(email, code)  # Tu función de envío
 
     return {"message": "OTP enviado exitosamente"}
 
@@ -452,7 +458,7 @@ async def verificar_otp(email: EmailStr, codigo: str, db: AsyncSession = Depends
     if not otp or otp.Code != codigo:
         raise HTTPException(status_code=400, detail="Código inválido")
 
-    if otp.ExpiresAt < datetime.utcnow():
+    if otp.ExpiresAt < datetime.now():
         raise HTTPException(status_code=400, detail="Código expirado")
 
     return {"message": "OTP verificado exitosamente"}
