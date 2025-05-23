@@ -6,6 +6,12 @@ import asyncio
 
 load_dotenv()
 
+#DB_USER = os.getenv("DB_USER")
+#DB_PASSWORD = os.getenv("DB_PASSWORD")
+#DB_HOST = os.getenv("DB_HOST")
+#DB_PORT = os.getenv("DB_PORT")
+#DB_NAME = os.getenv("DB_NAME")
+#URL_DATABASE = os.getenv("DATABASE_URL")
 # Usa el driver asyncpg en la URL
 URL_DATABASE = "postgresql+asyncpg://postgres:tzAo3bevuc9kU6F6kY651qcnyqGXuQEn0DbYNtGNjX37zLPeH4AdauGmYqVG5OSK@200.88.206.146:5432/postgres"
 
