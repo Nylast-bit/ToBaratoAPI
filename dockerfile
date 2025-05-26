@@ -1,12 +1,20 @@
-# Dockerfile
-FROM python:3.11-slim
+from python:3.11-slim
+
+env PIP_DISABLE_PIP_VERSION_CHECK=1
+
+ENV PYTHONUNBUFFERED=1
+
 
 WORKDIR /app
-COPY . /app
 
-RUN pip install --upgrade pip && \
-    pip install -r requirements.txt
+COPY ./requirements.txt
+RUN python -m venv venv
 
-EXPOSE 8888
+run /bin/bash -c "source venv/bin/activate"
+run pip install -r requirements.txt
 
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8888"]
+COPY . .
+
+EXPOSE 8000
+
+CMD ["uvicorn", "app.main:app", "--reload","--host", "0.0.0.0", "--port", "8000"]

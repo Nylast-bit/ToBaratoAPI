@@ -146,54 +146,6 @@ async def obtener_productos_por_tipo_proveedor(
         )
 
 
-@router.get("/productosporproveedor/{id_proveedor}", response_model=list[ProductoResponse])
-async def obtener_productos_por_proveedor(
-    id_proveedor: int, db: AsyncSession = Depends(get_db)
-):
-    try:
-        # 1. Verificar si el proveedor existe
-        result_proveedor = await db.execute(
-            select(Proveedor).where(Proveedor.IdProveedor == id_proveedor)
-        )
-        proveedor = result_proveedor.scalar_one_or_none()
-
-        if not proveedor:
-            raise HTTPException(
-                status_code=404,
-                detail={"error": "Proveedor no encontrado", "id_proveedor": id_proveedor}
-            )
-
-        # 2. Obtener IDs de productos asociados a ese proveedor
-        result_relaciones = await db.execute(
-            select(ProductoProveedor.IdProducto).where(
-                ProductoProveedor.IdProveedor == id_proveedor
-            )
-        )
-        ids_productos = result_relaciones.scalars().all()
-
-        if not ids_productos:
-            raise HTTPException(
-                status_code=404,
-                detail={"error": "Este proveedor no tiene productos asociados"}
-            )
-
-        # 3. Obtener los productos
-        result_productos = await db.execute(
-            select(Producto).where(Producto.IdProducto.in_(ids_productos))
-        )
-        productos = result_productos.scalars().all()
-
-        return productos
-
-    except Exception as e:
-        raise HTTPException(
-            status_code=500,
-            detail={
-                "error": "Error al obtener productos por proveedor",
-                "detalles": str(e)
-            }
-        )
-
 
 # Actualizar un producto
 @router.put("/producto/{id}", response_model=ProductoResponse)
@@ -284,4 +236,93 @@ async def obtener_productos_por_categoria(id: int, db: AsyncSession = Depends(ge
         raise HTTPException(status_code=404, detail="No se encontraron productos para esta categoría")
     
     return productos
+
+@router.get("/productotipoproveedor/{id}", response_model=list[ProductoResponse])
+async def obtener_productos_por_tipo_proveedor(
+    id: int, db: AsyncSession = Depends(get_db)
+):
+    try:
+        # 1. Obtener IDs de proveedores que tienen ese tipo
+        result_proveedores = await db.execute(
+            select(Proveedor.IdProveedor).where(Proveedor.IdTipoProveedor == id)
+        )
+        ids_proveedores = result_proveedores.scalars().all()
+
+        if not ids_proveedores:
+            raise HTTPException(status_code=404, detail="No existen proveedores de ese tipo")
+
+        # 2. Obtener los IDs de productos relacionados a esos proveedores
+        result_productoproveedor = await db.execute(
+            select(ProductoProveedor.IdProducto).where(
+                ProductoProveedor.IdProveedor.in_(ids_proveedores)
+            )
+        )
+        ids_productos = list(set(result_productoproveedor.scalars().all()))
+
+        if not ids_productos:
+            raise HTTPException(status_code=404, detail="No se encontraron productos asociados a esos proveedores")
+
+        # 3. Obtener los productos
+        result_productos = await db.execute(
+            select(Producto).where(Producto.IdProducto.in_(ids_productos))
+        )
+        productos = result_productos.scalars().all()
+
+        return productos
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail={"error": "Error al obtener los productos", "detalles": str(e)}
+        )
+
+
+
+@router.get("/productosporproveedor/{id_proveedor}", response_model=list[ProductoResponse])
+async def obtener_productos_por_proveedor(
+    id_proveedor: int, db: AsyncSession = Depends(get_db)
+):
+    try:
+        # 1. Verificar si el proveedor existe
+        result_proveedor = await db.execute(
+            select(Proveedor).where(Proveedor.IdProveedor == id_proveedor)
+        )
+        proveedor = result_proveedor.scalar_one_or_none()
+
+        if not proveedor:
+            raise HTTPException(
+                status_code=404,
+                detail={"error": "Proveedor no encontrado", "id_proveedor": id_proveedor}
+            )
+
+        # 2. Obtener IDs de productos asociados a ese proveedor
+        result_relaciones = await db.execute(
+            select(ProductoProveedor.IdProducto).where(
+                ProductoProveedor.IdProveedor == id_proveedor
+            )
+        )
+        ids_productos = result_relaciones.scalars().all()
+
+        if not ids_productos:
+            raise HTTPException(
+                status_code=404,
+                detail={"error": "Este proveedor no tiene productos asociados"}
+            )
+
+        # 3. Obtener los productos
+        result_productos = await db.execute(
+            select(Producto).where(Producto.IdProducto.in_(ids_productos))
+        )
+        productos = result_productos.scalars().all()
+
+        return productos
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "error": "Error al obtener productos por proveedor",
+                "detalles": str(e)
+            }
+        )
 

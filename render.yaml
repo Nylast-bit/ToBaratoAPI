@@ -1,0 +1,12 @@
+services:
+  - type: web
+    name: tobarato-api
+    runtime: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app.main:app --host=0.0.0.0 --port=8000
+    envVars:
+      - key: DATABASE_URL
+        value: postgres://usuario:contraseña@host:puerto/dbnombre
+      - key: ENV
+        value: production
+    plan: free

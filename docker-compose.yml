@@ -1,0 +1,10 @@
+version: "3"
+
+services: 
+  fastapi:
+    image: image-ToBaratoAPI
+    build: .
+    container_name: ToBaratoAPI
+    ports:
+      - 8000:8000
+

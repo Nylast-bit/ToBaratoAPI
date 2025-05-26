@@ -50,6 +50,6 @@ DB_NAME=mydatabase
 
 Para iniciar la API, ejecuta el siguiente comando:
 ```bash
-uvicorn main:app --host 0.0.0.0 --port 8081 --reload
+python -m uvicorn main:app --reload
 
 ```
