@@ -50,7 +50,7 @@ async def crear_producto(productoParam: ProductoCreate, db: Session = Depends(ge
         nuevo_producto = Producto(
             IdCategoria = productoParam.IdCategoria,
             IdUnidadMedida = productoParam.IdUnidadMedida,
-            Nombre = productoParam.Nombre,
+            NombreProducto = productoParam.NombreProducto,
             UrlImagen = productoParam.UrlImagen,
             Descripcion = productoParam.Descripcion,
             FechaCreacion=datetime.now().replace(tzinfo=None)
