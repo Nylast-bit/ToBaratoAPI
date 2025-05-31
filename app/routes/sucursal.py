@@ -9,7 +9,7 @@ from sqlalchemy.future import select
 from datetime import datetime
 from sqlalchemy import func
 from geopy.distance import geodesic
-
+from decimal import Decimal
 
 
 
@@ -226,14 +226,17 @@ async def eliminar_sucursal(id: int, db: AsyncSession = Depends(get_db)):
 
 
 
+
+
+
 @router.post("/sucursal-cercana", response_model=list[ProductoSucursalResponse])
-async def obtener_productos_cercanos(
+async def obtener_producto_cercano(
     datos: UbicacionProductoRequest,
     db: AsyncSession = Depends(get_db)
 ):
     lat = datos.lat
     lng = datos.lng
-    ids_productos = datos.ids_productos
+    ids_productos = datos.ids_producto
 
     try:
         # 1. Obtener todas las sucursales
@@ -278,7 +281,7 @@ async def obtener_productos_cercanos(
         # 5. Buscar precios de todos los productos en cada proveedor
         resultados = []
         for suc in sucursales_filtradas:
-            total = 0.0
+            total = Decimal("0.0")
             precios_completos = True
 
             for id_prod in ids_productos:
@@ -291,7 +294,7 @@ async def obtener_productos_cercanos(
                 precio = result_precio.scalar()
                 if precio is None:
                     precios_completos = False
-                    break  # Si falta un producto, no lo consideramos
+                    break
                 total += precio
 
             if precios_completos:
@@ -300,14 +303,14 @@ async def obtener_productos_cercanos(
                     "Latitud": suc["Latitud"],
                     "Longitud": suc["Longitud"],
                     "IdProveedor": suc["IdProveedor"],
-                    "Precio": round(total, 2),
+                    "Precio": float(round(total, 2)),
                     "Distancia": round(suc["Distancia"], 2)
                 })
 
         if not resultados:
-            raise HTTPException(status_code=404, detail="No hay sucursales con todos los productos disponibles")
+            raise HTTPException(status_code=404, detail="No hay proveedores que tengan todos los productos")
 
-        # 6. Devolver las 3 con menor precio total
+        # 6. Devolver los 3 más baratos
         resultados.sort(key=lambda x: x["Precio"])
         return resultados[:3]
 
