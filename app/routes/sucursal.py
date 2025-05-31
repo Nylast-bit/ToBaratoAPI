@@ -228,7 +228,7 @@ async def eliminar_sucursal(id: int, db: AsyncSession = Depends(get_db)):
 
 @router.post("/sucursal-cercana", response_model=list[ProductoSucursalResponse])
 async def obtener_productos_cercanos(
-    datos: UbicacionProductosRequest,
+    datos: UbicacionProductoRequest,
     db: AsyncSession = Depends(get_db)
 ):
     lat = datos.lat
