@@ -236,7 +236,7 @@ async def obtener_producto_cercano(
 ):
     lat = datos.lat
     lng = datos.lng
-    ids_productos = datos.ids_producto
+    ids_productos = datos.ids_productos
 
     try:
         # 1. Obtener todas las sucursales
