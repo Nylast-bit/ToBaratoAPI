@@ -24,5 +24,4 @@ pyjwt==2.10.1
 sqlmodel==0.0.24
 asyncpg==0.30.0
 aiosmtplib==4.0.1
-email-validator==3.10
 geopy==2.4.0
