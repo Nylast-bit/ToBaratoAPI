@@ -231,13 +231,14 @@ async def obtener_producto_cercano(
     datos: UbicacionProductoRequest,
     db: AsyncSession = Depends(get_db)
 ):
-    
     lat = datos.lat
     lng = datos.lng
-    id_producto = datos.id_producto
+    ids_productos = datos.ids_productos
+
+    if not ids_productos:
+        raise HTTPException(status_code=400, detail="Debes incluir al menos un id de producto")
 
     try:
-        # 1. Obtener todas las sucursales
         result_sucursales = await db.execute(
             select(
                 Sucursal.IdSucursal,
@@ -252,7 +253,6 @@ async def obtener_producto_cercano(
         if not sucursales:
             raise HTTPException(status_code=404, detail="No hay sucursales registradas")
 
-        # 2. Calcular distancia a cada sucursal
         sucursales_con_distancia = []
         for s in sucursales:
             distancia = geodesic((lat, lng), (s.Latitud, s.Longitud)).km
@@ -265,10 +265,8 @@ async def obtener_producto_cercano(
                 "Distancia": distancia
             })
 
-        # 3. Ordenar por cercanía
         sucursales_con_distancia.sort(key=lambda x: x["Distancia"])
 
-        # 4. Filtrar: solo una sucursal por proveedor (la más cercana)
         proveedor_visto = set()
         sucursales_filtradas = []
         for suc in sucursales_con_distancia:
@@ -276,32 +274,38 @@ async def obtener_producto_cercano(
                 proveedor_visto.add(suc["IdProveedor"])
                 sucursales_filtradas.append(suc)
 
-        # 5. Buscar precios del producto en esas sucursales únicas
         resultados = []
         for suc in sucursales_filtradas:
-            result_precio = await db.execute(
-                select(ProductoProveedor.Precio).where(
-                    ProductoProveedor.IdProveedor == suc["IdProveedor"],
-                    ProductoProveedor.IdProducto == id_producto
+            total = 0
+            precios_completos = True
+
+            for id_prod in ids_productos:
+                result_precio = await db.execute(
+                    select(ProductoProveedor.Precio).where(
+                        ProductoProveedor.IdProveedor == suc["IdProveedor"],
+                        ProductoProveedor.IdProducto == id_prod
+                    )
                 )
-            )
-            precio = result_precio.scalar()
-            if precio is not None:
+                precio = result_precio.scalar()
+                if precio is None:
+                    precios_completos = False
+                    break  # Si falta un producto, descartamos esta sucursal
+                total += precio
+
+            if precios_completos:
                 resultados.append({
                     "NombreSucursal": suc["NombreSucursal"],
                     "Latitud": suc["Latitud"],
                     "Longitud": suc["Longitud"],
                     "IdProveedor": suc["IdProveedor"],
-                    "Precio": precio,
-                    "Distancia": round(suc["Distancia"], 2)
-
+                    "PrecioTotal": round(total, 2),
+                    "DistanciaKM": round(suc["Distancia"], 2)
                 })
 
         if not resultados:
-            raise HTTPException(status_code=404, detail="No hay precios disponibles para ese producto")
+            raise HTTPException(status_code=404, detail="No hay sucursales con todos los productos disponibles")
 
-        # 6. Devolver los 3 precios más baratos de proveedores únicos
-        resultados.sort(key=lambda x: x["Precio"])
+        resultados.sort(key=lambda x: x["PrecioTotal"])
         return resultados[:3]
 
     except Exception as e:

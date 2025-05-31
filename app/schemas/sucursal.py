@@ -2,6 +2,8 @@ from pydantic import BaseModel, Field, field_validator
 from datetime import datetime
 from typing import Optional
 import pytz
+from typing import List
+
 
 class SucursalBase(BaseModel):
     IdProveedor: int = Field(..., alias="IdProveedor")
@@ -54,7 +56,7 @@ class ProductoSucursalResponse(BaseModel):
 class UbicacionProductoRequest(BaseModel):
     lat: float
     lng: float
-    id_producto: int
+    ids_productos: List[int]
 
 class SucursalResponse(SucursalBase):
     IdSucursal: int = Field(..., alias="IdSucursal")
