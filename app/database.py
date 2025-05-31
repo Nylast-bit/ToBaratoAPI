@@ -13,7 +13,8 @@ load_dotenv()
 #DB_NAME = os.getenv("DB_NAME")
 #URL_DATABASE = os.getenv("DATABASE_URL")
 # Usa el driver asyncpg en la URL
-URL_DATABASE = "postgresql+asyncpg://postgres:tzAo3bevuc9kU6F6kY651qcnyqGXuQEn0DbYNtGNjX37zLPeH4AdauGmYqVG5OSK@148.255.203.188:5432/postgres"
+
+URL_DATABASE = "postgresql+asyncpg://postgres:tzAo3bevuc9kU6F6kY651qcnyqGXuQEn0DbYNtGNjX37zLPeH4AdauGmYqVG5OSK@127.0.0.1:5432/postgres"
 
 if not URL_DATABASE:
     raise ValueError("La URL de la base de datos no está configurada")
