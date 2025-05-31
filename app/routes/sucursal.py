@@ -227,18 +227,16 @@ async def eliminar_sucursal(id: int, db: AsyncSession = Depends(get_db)):
 
 
 @router.post("/sucursal-cercana", response_model=list[ProductoSucursalResponse])
-async def obtener_producto_cercano(
-    datos: UbicacionProductoRequest,
+async def obtener_productos_cercanos(
+    datos: UbicacionProductosRequest,
     db: AsyncSession = Depends(get_db)
 ):
     lat = datos.lat
     lng = datos.lng
     ids_productos = datos.ids_productos
 
-    if not ids_productos:
-        raise HTTPException(status_code=400, detail="Debes incluir al menos un id de producto")
-
     try:
+        # 1. Obtener todas las sucursales
         result_sucursales = await db.execute(
             select(
                 Sucursal.IdSucursal,
@@ -253,6 +251,7 @@ async def obtener_producto_cercano(
         if not sucursales:
             raise HTTPException(status_code=404, detail="No hay sucursales registradas")
 
+        # 2. Calcular distancia a cada sucursal
         sucursales_con_distancia = []
         for s in sucursales:
             distancia = geodesic((lat, lng), (s.Latitud, s.Longitud)).km
@@ -265,8 +264,10 @@ async def obtener_producto_cercano(
                 "Distancia": distancia
             })
 
+        # 3. Ordenar por cercanía
         sucursales_con_distancia.sort(key=lambda x: x["Distancia"])
 
+        # 4. Filtrar: solo una sucursal por proveedor (la más cercana)
         proveedor_visto = set()
         sucursales_filtradas = []
         for suc in sucursales_con_distancia:
@@ -274,9 +275,10 @@ async def obtener_producto_cercano(
                 proveedor_visto.add(suc["IdProveedor"])
                 sucursales_filtradas.append(suc)
 
+        # 5. Buscar precios de todos los productos en cada proveedor
         resultados = []
         for suc in sucursales_filtradas:
-            total = 0
+            total = 0.0
             precios_completos = True
 
             for id_prod in ids_productos:
@@ -289,7 +291,7 @@ async def obtener_producto_cercano(
                 precio = result_precio.scalar()
                 if precio is None:
                     precios_completos = False
-                    break  # Si falta un producto, descartamos esta sucursal
+                    break  # Si falta un producto, no lo consideramos
                 total += precio
 
             if precios_completos:
@@ -298,14 +300,15 @@ async def obtener_producto_cercano(
                     "Latitud": suc["Latitud"],
                     "Longitud": suc["Longitud"],
                     "IdProveedor": suc["IdProveedor"],
-                    "PrecioTotal": round(total, 2),
-                    "DistanciaKM": round(suc["Distancia"], 2)
+                    "Precio": round(total, 2),
+                    "Distancia": round(suc["Distancia"], 2)
                 })
 
         if not resultados:
             raise HTTPException(status_code=404, detail="No hay sucursales con todos los productos disponibles")
 
-        resultados.sort(key=lambda x: x["PrecioTotal"])
+        # 6. Devolver las 3 con menor precio total
+        resultados.sort(key=lambda x: x["Precio"])
         return resultados[:3]
 
     except Exception as e:
