@@ -6,7 +6,7 @@ from sqlalchemy import Column, Float
 class ProductoBase(BaseModel):
     IdCategoria: int = Field(..., alias="IdCategoria")
     IdUnidadMedida: int = Field(..., alias="IdUnidadMedida")
-    NombreProducto: str = Field(..., max_length=100, alias="Nombre")
+    Nombre: str = Field(..., max_length=100)
     UrlImagen: Optional[str] = Field(None, alias="UrlImagen")
     Descripcion: Optional[str] = Field(None, max_length=300, alias="Descripcion")
 
