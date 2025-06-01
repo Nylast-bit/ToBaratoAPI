@@ -1,11 +1,12 @@
 from fastapi import APIRouter, HTTPException, Depends, status
 from sqlalchemy.orm import Session
 from typing import List, Annotated
-from app.models.models import Lista, Usuario, Proveedor
+from app.models.models import Lista, Usuario, Proveedor, ListaProducto
 from app.schemas.lista import ListaCreate, ListaResponse, ListaUpdate
 from app.database import AsyncSessionLocal
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
+from sqlalchemy import delete
 from datetime import datetime
 
 
@@ -175,22 +176,26 @@ async def actualizar_lista(id: int, listaParam: ListaUpdate, db: AsyncSession = 
 #Eliminar una lista por su id
 @router.delete("/lista/{id}", response_model=ListaResponse)
 async def eliminar_lista(id: int, db: AsyncSession = Depends(get_db)):
-    # Buscar la lista por ID de forma asincrónica
     result = await db.execute(select(Lista).where(Lista.IdLista == id))
     lista = result.scalar_one_or_none()
     if lista is None:
         raise HTTPException(status_code=404, detail="No existe la lista")
 
     try:
-        # Eliminar la lista de manera asincrónica
-        await db.delete(lista)
-        await db.commit()  # Confirmar cambios
+        # Eliminar todos los productos relacionados con la lista
+        await db.execute(
+            delete(ListaProducto).where(ListaProducto.IdLista == id)
+        )
 
-        return lista  # Devuelve el objeto antes de eliminarlo en la sesión
-    
+        # Luego eliminar la lista
+        await db.delete(lista)
+        await db.commit()
+
+        return lista
+
     except Exception as e:
-        await db.rollback()  # Revertir en caso de error
+        await db.rollback()
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            status_code=500,
             detail={"error": "Error al eliminar lista", "details": str(e)}
         )

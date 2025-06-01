@@ -121,7 +121,13 @@ class Lista(Base):
     
     Usuario = relationship("Usuario", back_populates="Listas")
     Proveedor = relationship("Proveedor", back_populates="Listas")
-    Productos = relationship("ListaProducto", back_populates="Lista")
+    
+    Productos = relationship(
+        "ListaProducto",
+        back_populates="Lista",
+        cascade="all, delete-orphan"
+    )
+
 
 class ListaProducto(Base):
     __tablename__ = 'ListaProducto'
@@ -138,6 +144,7 @@ class ListaProducto(Base):
     
     Lista = relationship("Lista", back_populates="Productos")
     Producto = relationship("Producto", back_populates="Listas")
+
 
 class UsuarioProveedor(Base):
     __tablename__ = 'UsuarioProveedor'
