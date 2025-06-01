@@ -5,7 +5,7 @@ from app.models.models import ListaProducto
 from app.schemas.listaproductos import ListaProductoCreate, ListaProductoResponse, ListaProductoUpdate
 from app.database import AsyncSessionLocal
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.future import select, delete
+from sqlalchemy.future import select
 
 
 
