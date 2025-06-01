@@ -5,7 +5,7 @@ from app.models.models import ListaProducto
 from app.schemas.listaproductos import ListaProductoCreate, ListaProductoResponse, ListaProductoUpdate
 from app.database import AsyncSessionLocal
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.future import select
+from sqlalchemy.future import select, delete
 
 
 
@@ -179,3 +179,31 @@ async def obtener_productos_de_lista(
         )
 
     return productos
+
+
+@router.delete("/productosdelista/{id_lista}", status_code=status.HTTP_204_NO_CONTENT)
+async def eliminar_productos_de_lista(
+    id_lista: int,
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Elimina todos los productos asociados a una lista específica usando instancia + db.delete
+    """
+    # Buscar los productos de la lista
+    result = await db.execute(
+        select(ListaProducto).where(ListaProducto.IdLista == id_lista)
+    )
+    productos = result.scalars().all()
+
+    if not productos:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"No se encontraron productos con IdLista {id_lista}"
+        )
+
+    # Eliminar uno por uno usando db.delete
+    for producto in productos:
+        await db.delete(producto)
+
+    await db.commit()
+
