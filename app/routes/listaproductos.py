@@ -77,6 +77,9 @@ async def obtener_producto_lista(
     
     return relacion
 
+
+
+
 #Actualizar un producto
 @router.put("/listas/{id_lista}/productos/{id_producto}", response_model=ListaProductoResponse)
 async def actualizar_producto_lista(
@@ -150,3 +153,29 @@ async def eliminar_producto_lista(
                 "details": str(e)
             }
         )
+
+
+@router.get("/productosdelista/{id_lista}", response_model=List[ListaProductoResponse])
+async def obtener_productos_de_lista(
+    id_lista: int,
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Obtiene todos los productos asociados a una lista específica de forma asincrónica
+    """
+    result = await db.execute(
+        select(ListaProducto).where(ListaProducto.IdLista == id_lista)
+    )
+    
+    productos = result.scalars().all()
+
+    if not productos:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={
+                "error": "No se encontraron productos para la lista",
+                "IdLista": id_lista
+            }
+        )
+
+    return productos
