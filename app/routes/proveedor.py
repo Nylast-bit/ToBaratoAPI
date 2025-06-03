@@ -131,66 +131,58 @@ async def obtener_proveedor_por_id(id: int, db: AsyncSession = Depends(get_db)):
 
 
 #Actualizar un proveedor
-@router.put("/producto/{id}", response_model=ProductoResponse)
-async def actualizar_producto(
-    id: int,
-    productoParam: ProductoUpdate,
-    db: AsyncSession = Depends(get_db)
-):
-    # 1. Obtener producto existente de forma asincrónica
-    result = await db.execute(select(Producto).where(Producto.IdProducto == id))
-    producto = result.scalar_one_or_none()
-    
-    if not producto:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail={"error": "Producto no encontrado", "id": id}
-        )
-    
-    try:
-        # 2. Obtener solo los campos proporcionados
-        update_data = productoParam.model_dump(exclude_unset=True)
-        
-        # 3. Validaciones específicas asincrónicas
-        if "IdCategoria" in update_data:
-            result_categoria = await db.execute(select(Categoria).where(Categoria.IdCategoria == update_data["IdCategoria"]))
-            if not result_categoria.scalar_one_or_none():
-                raise ValueError("La categoría especificada no existe")
-        
-        if "IdUnidadMedida" in update_data:
-            result_unidad = await db.execute(select(UnidadMedida).where(UnidadMedida.IdUnidadMedida == update_data["IdUnidadMedida"]))
-            if not result_unidad.scalar_one_or_none():
-                raise ValueError("La unidad de medida especificada no existe")
-        
-        # 4. Aplicar actualizaciones
-        for field, value in update_data.items():
-            setattr(producto, field, value)
-        
-        await db.commit()
-        await db.refresh(producto)
-        return producto
+@router.put("/proveedor/{id}", response_model=ProveedorResponse)
+async def actualizar_proveedor(id: int, proveedorParam: ProveedorUpdate, db: AsyncSession = Depends(get_db)):
+    async with db as session:
+        # 1. Obtener proveedor existente
+        result = await session.execute(select(Proveedor).where(Proveedor.IdProveedor == id))
+        proveedor = result.scalars().first()
+        if not proveedor:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail={"error": "Proveedor no encontrado", "id": id}
+            )
 
-    except ValueError as ve:
-        await db.rollback()
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail={
-                "error": "Error de validación",
-                "message": str(ve),
-                "field": getattr(ve, 'field', None)
-            }
-        )
-    except Exception as e:
-        await db.rollback()
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail={
-                "error": "Error al actualizar producto",
-                "details": str(e)
-            }
-        )
-
-
+        try:
+            # 2. Obtener solo los campos proporcionados (ignorar None)
+            update_data = proveedorParam.model_dump(exclude_unset=True)
+            
+            # 3. Validaciones específicas
+            if "IdTipoProveedor" in update_data:
+                # Validar que el tipo de proveedor exista
+                result_tipo_proveedor = await session.execute(select(TipoProveedor).where(TipoProveedor.IdTipoProveedor == update_data["IdTipoProveedor"]))
+                tipo_proveedor = result_tipo_proveedor.scalars().first()
+                if not tipo_proveedor:
+                    raise ValueError("El tipo de proveedor especificado no existe")
+                
+            # 4. Validación de campos adicionales (si es necesario)
+            if "UrlLogo" in update_data:
+                if not update_data["UrlLogo"].startswith("http"):
+                    raise ValueError("La URL del logo debe comenzar con 'http'")
+            
+            # 5. Aplicar actualizaciones
+            for field, value in update_data.items():
+                setattr(proveedor, field, value)
+            
+            await session.commit()
+            await session.refresh(proveedor)
+            return proveedor
+        
+        except ValueError as ve:
+            await session.rollback()
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail={"error": "Error de validación", "message": str(ve)}
+            )
+        except Exception as e:
+            await session.rollback()
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail={
+                    "error": "Error al actualizar proveedor",
+                    "details": str(e)
+                }
+            )
 #Eliminar un proveedor
 @router.delete("/proveedor/{id}", response_model=ProveedorResponse)
 async def eliminar_proveedor(id: int, db: AsyncSession = Depends(get_db)):

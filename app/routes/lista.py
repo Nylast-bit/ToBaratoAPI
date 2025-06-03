@@ -199,3 +199,5 @@ async def eliminar_lista(id: int, db: AsyncSession = Depends(get_db)):
             status_code=500,
             detail={"error": "Error al eliminar lista", "details": str(e)}
         )
+
+

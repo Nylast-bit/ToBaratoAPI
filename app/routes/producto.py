@@ -149,9 +149,15 @@ async def obtener_productos_por_tipo_proveedor(
 
 # Actualizar un producto
 @router.put("/producto/{id}", response_model=ProductoResponse)
-async def actualizar_producto(id: int, productoParam: ProductoUpdate, db: Session = Depends(get_db)):
-    # 1. Obtener producto existente
-    producto = db.query(Producto).filter(Producto.IdProducto == id).first()
+async def actualizar_producto(
+    id: int,
+    productoParam: ProductoUpdate,
+    db: AsyncSession = Depends(get_db)
+):
+    # 1. Obtener producto existente de forma asincrónica
+    result = await db.execute(select(Producto).where(Producto.IdProducto == id))
+    producto = result.scalar_one_or_none()
+    
     if not producto:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -162,36 +168,37 @@ async def actualizar_producto(id: int, productoParam: ProductoUpdate, db: Sessio
         # 2. Obtener solo los campos proporcionados
         update_data = productoParam.model_dump(exclude_unset=True)
         
-        # 3. Validaciones específicas
+        # 3. Validaciones específicas asincrónicas
         if "IdCategoria" in update_data:
-            if not db.query(Categoria).get(update_data["IdCategoria"]):
+            result_categoria = await db.execute(select(Categoria).where(Categoria.IdCategoria == update_data["IdCategoria"]))
+            if not result_categoria.scalar_one_or_none():
                 raise ValueError("La categoría especificada no existe")
         
         if "IdUnidadMedida" in update_data:
-            if not db.query(UnidadMedida).get(update_data["IdUnidadMedida"]):
+            result_unidad = await db.execute(select(UnidadMedida).where(UnidadMedida.IdUnidadMedida == update_data["IdUnidadMedida"]))
+            if not result_unidad.scalar_one_or_none():
                 raise ValueError("La unidad de medida especificada no existe")
-        
         
         # 4. Aplicar actualizaciones
         for field, value in update_data.items():
             setattr(producto, field, value)
         
-        db.commit()
-        db.refresh(producto)
+        await db.commit()
+        await db.refresh(producto)
         return producto
-        
+
     except ValueError as ve:
-        db.rollback()
+        await db.rollback()
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail={
                 "error": "Error de validación",
                 "message": str(ve),
-                "field": ve.field if hasattr(ve, 'field') else None
+                "field": getattr(ve, 'field', None)
             }
         )
     except Exception as e:
-        db.rollback()
+        await db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail={
@@ -199,7 +206,8 @@ async def actualizar_producto(id: int, productoParam: ProductoUpdate, db: Sessio
                 "details": str(e)
             }
         )
-    
+
+  
 # Eliminar un producto
 @router.delete("/producto/{id}", response_model=ProductoResponse)
 async def eliminar_producto(id: int, db: AsyncSession = Depends(get_db)):
