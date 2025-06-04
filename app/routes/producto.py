@@ -292,11 +292,9 @@ async def obtener_productos_por_proveedor(
 ):
     try:
         # 1. Verificar si el proveedor existe
-        result_proveedor = await db.execute(
+        proveedor = await db.scalar(
             select(Proveedor).where(Proveedor.IdProveedor == id_proveedor)
         )
-        proveedor = result_proveedor.scalar_one_or_none()
-
         if not proveedor:
             raise HTTPException(
                 status_code=404,
@@ -304,24 +302,18 @@ async def obtener_productos_por_proveedor(
             )
 
         # 2. Obtener IDs de productos asociados a ese proveedor
-        result_relaciones = await db.execute(
-            select(ProductoProveedor.IdProducto).where(
+        result = await db.execute(
+            select(Producto).join(ProductoProveedor).where(
                 ProductoProveedor.IdProveedor == id_proveedor
             )
         )
-        ids_productos = result_relaciones.scalars().all()
+        productos = result.scalars().all()
 
-        if not ids_productos:
+        if not productos:
             raise HTTPException(
                 status_code=404,
                 detail={"error": "Este proveedor no tiene productos asociados"}
             )
-
-        # 3. Obtener los productos
-        result_productos = await db.execute(
-            select(Producto).where(Producto.IdProducto.in_(ids_productos))
-        )
-        productos = result_productos.scalars().all()
 
         return productos
 
@@ -333,4 +325,3 @@ async def obtener_productos_por_proveedor(
                 "detalles": str(e)
             }
         )
-
