@@ -93,22 +93,22 @@ class Sucursal(Base):
     
     Proveedor = relationship("Proveedor", back_populates="Sucursales")
 
-    class Producto(Base):
-        __tablename__ = 'Producto'
+class Producto(Base):
+    __tablename__ = 'Producto'
         
-        IdProducto = Column(Integer, primary_key=True, autoincrement=True)
-        IdCategoria = Column(Integer, ForeignKey('Categoria.IdCategoria'), nullable=False)
-        IdUnidadMedida = Column(Integer, ForeignKey('UnidadMedida.IdUnidadMedida'), nullable=False)
-        Nombre = Column(String(100), nullable=False)
-        UrlImagen = Column(Text, nullable=False)
-        Descripcion = Column(Text)
-        FechaCreacion = Column(DateTime, default=now_bolivia)
+    IdProducto = Column(Integer, primary_key=True, autoincrement=True)
+    IdCategoria = Column(Integer, ForeignKey('Categoria.IdCategoria'), nullable=False)
+    IdUnidadMedida = Column(Integer, ForeignKey('UnidadMedida.IdUnidadMedida'), nullable=False)
+    Nombre = Column(String(100), nullable=False)
+    UrlImagen = Column(Text, nullable=False)
+    Descripcion = Column(Text)
+    FechaCreacion = Column(DateTime, default=now_bolivia)
         
-        Categoria = relationship("Categoria", back_populates="Productos")
-        UnidadMedida = relationship("UnidadMedida", back_populates="Productos")
-        Listas = relationship("ListaProducto", back_populates="Producto")
-        Proveedores = relationship("ProductoProveedor", back_populates="Producto")
-
+    Categoria = relationship("Categoria", back_populates="Productos")
+    UnidadMedida = relationship("UnidadMedida", back_populates="Productos")
+    Listas = relationship("ListaProducto", back_populates="Producto")
+    Proveedores = relationship("ProductoProveedor", back_populates="Producto")    
+        
 class Lista(Base):
     __tablename__ = 'Lista'
     
