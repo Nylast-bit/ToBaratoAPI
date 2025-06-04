@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 from typing import List, Annotated
 from app.models.models import Producto, Categoria, UnidadMedida, Proveedor, ProductoProveedor
 from app.schemas.producto import ProductoCreate, ProductoResponse, ProductoUpdate, BigProductoProveedorResponse
+from sqlalchemy.orm import joinedload
 from app.schemas.productoproveedor import ProductoProveedorResponse
 from app.database import AsyncSessionLocal
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -326,18 +327,11 @@ async def obtener_productos_por_proveedor(
             }
         )
 
-
-@router.get("/precios-productos/proveedor/{id_proveedor}", response_model=list[BigProductoProveedorResponse])
-async def obtener_productos_con_precios(id_proveedor: int, db: AsyncSession = Depends(get_db)):
-    result = await db.execute(
-        select(ProductoProveedor).where(ProductoProveedor.IdProveedor == id_proveedor)
-    )
-    items = result.scalars().all()
-
-    if not items:
-        raise HTTPException(
-            status_code=404,
-            detail=f"No se encontraron productos para el proveedor {id_proveedor}"
-        )
-
-    return items
+@router.get("/precios-productos/proveedor/{id}", response_model=List[BigProductoProveedorResponse])
+def obtener_productos_con_precios(id: int, db: Session = Depends(get_db)):
+    productos = db.query(ProductoProveedor)\
+        .options(joinedload(ProductoProveedor.Producto))\
+        .filter(ProductoProveedor.IdProveedor == id)\
+        .all()
+    
+    return productos
