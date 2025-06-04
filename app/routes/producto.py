@@ -328,7 +328,7 @@ async def obtener_productos_por_proveedor(
         )
 
 @router.get("/precios-productos/proveedor/{id}", response_model=List[BigProductoProveedorResponse])
-async def obtener_productos_con_precios(id: int, db: AsyncSession = Depends(AsyncSessionLocal)):
+async def obtener_productos_con_precios(id: int, db: AsyncSession = Depends(get_db)):
     stmt = select(ProductoProveedor).options(joinedload(ProductoProveedor.Producto)).where(ProductoProveedor.IdProveedor == id)
     result = await db.execute(stmt)
     productos = result.scalars().all()
