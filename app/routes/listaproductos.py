@@ -83,38 +83,56 @@ async def obtener_producto_lista(
 async def obtener_insights(db: AsyncSession = Depends(get_db)):
     insights = []
 
-    # Productos más comprados por proveedor
+    # Productos más comprados por proveedor (con IDs)
     query1 = (
         select(
+            Producto.IdProducto,
             Producto.Nombre,
+            Proveedor.IdProveedor,
             Proveedor.Nombre,
             func.count().label("Total")
         )
         .join(ListaProducto, Producto.IdProducto == ListaProducto.IdProducto)
         .join(Lista, Lista.IdLista == ListaProducto.IdLista)
         .join(Proveedor, Lista.IdProveedor == Proveedor.IdProveedor)
-        .group_by(Producto.Nombre, Proveedor.Nombre)
+        .group_by(Producto.IdProducto, Producto.Nombre, Proveedor.IdProveedor, Proveedor.Nombre)
         .order_by(desc("Total"))
         .limit(10)
     )
     result1 = await db.execute(query1)
     productos_comprados = [
-        {"producto": r[0], "proveedor": r[1], "veces_comprado": r[2]} for r in result1
+        {
+            "id_producto": r[0],
+            "producto": r[1],
+            "id_proveedor": r[2],
+            "proveedor": r[3],
+            "veces_comprado": r[4],
+        } for r in result1
     ]
     insights.append({"Productos más comprados por proveedor": productos_comprados})
 
-    # Días con más compras de productos (y proveedor que más aparece)
+    # Días con más compras de productos (con detalles)
     query2 = (
         select(
             func.to_char(Lista.FechaCreacion, 'Day').label("dia_semana"),
+            Producto.IdProducto,
+            Producto.Nombre,
             func.count().label("total")
         )
-        .group_by("dia_semana")
+        .join(ListaProducto, Lista.IdLista == ListaProducto.IdLista)
+        .join(Producto, Producto.IdProducto == ListaProducto.IdProducto)
+        .group_by("dia_semana", Producto.IdProducto, Producto.Nombre)
         .order_by(desc("total"))
+        .limit(10)
     )
     result2 = await db.execute(query2)
     dias_populares = [
-        {"dia": r[0].strip(), "compras": r[1]} for r in result2
+        {
+            "dia": r[0].strip(),
+            "id_producto": r[1],
+            "producto": r[2],
+            "compras": r[3]
+        } for r in result2
     ]
 
     query2b = (
@@ -122,91 +140,81 @@ async def obtener_insights(db: AsyncSession = Depends(get_db)):
         .join(Lista, Lista.IdProveedor == Proveedor.IdProveedor)
         .group_by(Proveedor.Nombre)
         .order_by(desc("total"))
-        .limit(1)
+        .limit(3)
     )
-    proveedor_mas_aparece = (await db.execute(query2b)).first()
-    insights.append({"Días con más compras de productos": dias_populares, "Proveedor más frecuente": proveedor_mas_aparece[0] if proveedor_mas_aparece else None})
+    result2b = await db.execute(query2b)
+    proveedores_frecuentes = [r[0] for r in result2b]
+    insights.append({"Días con más compras de productos": dias_populares, "Top 3 Proveedores más frecuentes": proveedores_frecuentes})
 
-    # Proveedor con más listas
-    query3 = (
-        select(Proveedor.Nombre, func.count().label("total"))
-        .join(Lista, Lista.IdProveedor == Proveedor.IdProveedor)
-        .group_by(Proveedor.Nombre)
-        .order_by(desc("total"))
-    )
-    result3 = await db.execute(query3)
-    insights.append({"Proveedores con más listas": [
-        {"proveedor": r[0], "listas": r[1]} for r in result3
-    ]})
-
-    # Cantidad de sucursales por proveedor
-    query4 = (
-        select(Proveedor.Nombre, func.count().label("total"))
-        .join(Sucursal, Sucursal.IdProveedor == Proveedor.IdProveedor)
-        .group_by(Proveedor.Nombre)
-    )
-    result4 = await db.execute(query4)
-    insights.append({"Sucursales por proveedor": [
-        {"proveedor": r[0], "sucursales": r[1]} for r in result4
-    ]})
-
-    # Tendencia semanal de compras
-    query5 = (
-        select(func.date_trunc('week', Lista.FechaCreacion).label("semana"), func.count().label("total"))
-        .group_by("semana")
-        .order_by("semana")
-    )
-    result5 = await db.execute(query5)
-    insights.append({"Tendencia semanal": [
-        {"semana": r[0].strftime("%Y-%m-%d"), "listas": r[1]} for r in result5
-    ]})
-
-    # Precio promedio de listas por proveedor
-    query6 = (
-        select(Proveedor.Nombre, func.avg(Lista.PrecioTotal).label("promedio"))
-        .join(Lista, Lista.IdProveedor == Proveedor.IdProveedor)
-        .group_by(Proveedor.Nombre)
-    )
-    result6 = await db.execute(query6)
-    insights.append({"Precio promedio por proveedor": [
-        {"proveedor": r[0], "promedio": float(r[1])} for r in result6
-    ]})
-
-    # Cantidad promedio de productos por lista de proveedor
-    # Cantidad promedio de productos por lista de proveedor
-    sub = (
-        select(Lista.IdProveedor, func.count(ListaProducto.IdProducto).label("cantidad"))
+    # Tendencia semanal de compras con productos más frecuentes por semana
+    sub_q = (
+        select(
+            func.date_trunc('week', Lista.FechaCreacion).label("semana"),
+            Producto.IdProducto,
+            Producto.Nombre,
+            func.count().label("apariciones")
+        )
         .join(ListaProducto, Lista.IdLista == ListaProducto.IdLista)
-        .group_by(Lista.IdLista, Lista.IdProveedor)
+        .join(Producto, Producto.IdProducto == ListaProducto.IdProducto)
+        .group_by("semana", Producto.IdProducto, Producto.Nombre)
     ).subquery()
 
-    query7 = (
-        select(Proveedor.Nombre, func.avg(sub.c.cantidad).label("promedio"))
-        .join(sub, sub.c.IdProveedor == Proveedor.IdProveedor)
-        .group_by(Proveedor.Nombre)
+    query5 = (
+        select(
+            sub_q.c.semana,
+            sub_q.c.IdProducto,
+            sub_q.c.Nombre,
+            sub_q.c.apariciones
+        )
+        .order_by(sub_q.c.semana, desc(sub_q.c.apariciones))
     )
+    result5 = await db.execute(query5)
 
-    result7 = await db.execute(query7)
-    insights.append({"Cantidad promedio de productos por lista (por proveedor)": [
-        {"proveedor": r[0], "promedio": float(r[1])} for r in result7
-    ]})
+    tendencias_semanales = {}
+    for semana, id_prod, nombre_prod, apariciones in result5:
+        key = semana.strftime("%Y-%m-%d")
+        if key not in tendencias_semanales:
+            tendencias_semanales[key] = []
+        tendencias_semanales[key].append({
+            "id_producto": id_prod,
+            "producto": nombre_prod,
+            "listas": apariciones
+        })
+    insights.append({"Tendencia semanal": tendencias_semanales})
 
-    # Producto más comprado por categoría
+    # Producto más comprado por categoría con distribución por proveedor
     query8 = (
-        select(Categoria.NombreCategoria, Producto.Nombre, func.count().label("Total"))
+        select(
+            Categoria.NombreCategoria,
+            Producto.IdProducto,
+            Producto.Nombre,
+            Proveedor.Nombre,
+            func.count().label("Total")
+        )
         .join(Producto, Categoria.IdCategoria == Producto.IdCategoria)
         .join(ListaProducto, Producto.IdProducto == ListaProducto.IdProducto)
-        .group_by(Categoria.NombreCategoria, Producto.Nombre)
+        .join(Lista, Lista.IdLista == ListaProducto.IdLista)
+        .join(Proveedor, Lista.IdProveedor == Proveedor.IdProveedor)
+        .group_by(Categoria.NombreCategoria, Producto.IdProducto, Producto.Nombre, Proveedor.Nombre)
         .order_by(Categoria.NombreCategoria, desc("Total"))
     )
     result8 = await db.execute(query8)
     productos_categoria = {}
-    for nombre_cat, nombre_prod, total in result8:
-        if nombre_cat not in productos_categoria:
-            productos_categoria[nombre_cat] = {"producto": nombre_prod, "veces_comprado": total}
+    for cat, id_prod, nombre_prod, proveedor, total in result8:
+        if cat not in productos_categoria:
+            productos_categoria[cat] = {
+                "id_producto": id_prod,
+                "producto": nombre_prod,
+                "distribucion": []
+            }
+        if productos_categoria[cat]["producto"] == nombre_prod:
+            productos_categoria[cat]["distribucion"].append({
+                "proveedor": proveedor,
+                "veces_comprado": total
+            })
     insights.append({"Producto más comprado por categoría": productos_categoria})
 
-    # Mapa de calor por hora del día
+    # Mapa de calor por hora del día (total representa la cantidad de listas creadas en esa hora)
     query9 = (
         select(extract('hour', Lista.FechaCreacion).label("hora"), func.count().label("total"))
         .group_by("hora")
@@ -214,11 +222,10 @@ async def obtener_insights(db: AsyncSession = Depends(get_db)):
     )
     result9 = await db.execute(query9)
     insights.append({"Mapa de calor por hora": [
-        {"hora": int(r[0]), "total": r[1]} for r in result9
+        {"hora": int(r[0]), "total_listas_creadas": r[1]} for r in result9
     ]})
 
     return insights
-
 
 
 #Actualizar un producto
