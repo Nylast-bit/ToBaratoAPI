@@ -77,7 +77,7 @@ class Proveedor(Base):
     
     TipoProveedor = relationship("TipoProveedor", back_populates="Proveedores")
     Listas = relationship("Lista", back_populates="Proveedor")
-    Productos = relationship("ProductoProveedor", back_populates="Proveedor")
+    Productos = relationship("ProductoProveedor", back_populates="Proveedor", cascade="all, delete-orphan")
     Usuarios = relationship("UsuarioProveedor", back_populates="Proveedor")
     Sucursales = relationship("Sucursal", back_populates="Proveedor")
 

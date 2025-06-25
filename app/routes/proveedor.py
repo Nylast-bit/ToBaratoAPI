@@ -1,9 +1,10 @@
 from fastapi import APIRouter, HTTPException, Depends, status
 from sqlalchemy.orm import Session
 from typing import List, Annotated
-from app.models.models import Proveedor,TipoProveedor
+from app.models.models import Proveedor,TipoProveedor, ProductoProveedor
 from app.schemas.proveedor import ProveedorCreate, ProveedorResponse, ProveedorUpdate
 from app.database import AsyncSessionLocal
+from sqlalchemy import delete
 from sqlalchemy.future import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from datetime import datetime
@@ -187,7 +188,6 @@ async def actualizar_proveedor(id: int, proveedorParam: ProveedorUpdate, db: Asy
 @router.delete("/proveedor/{id}", response_model=ProveedorResponse)
 async def eliminar_proveedor(id: int, db: AsyncSession = Depends(get_db)):
     async with db as session:
-        # 1. Obtener proveedor existente
         result = await session.execute(select(Proveedor).where(Proveedor.IdProveedor == id))
         proveedor = result.scalars().first()
         
@@ -198,10 +198,15 @@ async def eliminar_proveedor(id: int, db: AsyncSession = Depends(get_db)):
             )
         
         try:
-            # 2. Eliminar el proveedor
+            # Eliminar relaciones en ProductoProveedor
+            await session.execute(
+                delete(ProductoProveedor).where(ProductoProveedor.IdProveedor == id)
+            )
+            
+            # Ahora eliminar el proveedor
             await session.delete(proveedor)
             await session.commit()
-            
+
             return proveedor
         
         except Exception as e:
@@ -213,4 +218,3 @@ async def eliminar_proveedor(id: int, db: AsyncSession = Depends(get_db)):
                     "details": str(e)
                 }
             )
-
