@@ -2,7 +2,7 @@ from fastapi import APIRouter, HTTPException, Depends, status, Query
 from sqlalchemy.orm import Session
 from typing import List, Annotated
 from app.models.models import Sucursal, Proveedor, ProductoProveedor
-from app.schemas.sucursal import SucursalCreate, SucursalResponse, SucursalUpdate, UbicacionProductoRequest, ProductoSucursalResponse
+from app.schemas.sucursal import SucursalCreate, SucursalResponse, SucursalUpdate, UbicacionProductoRequest, ProductoSucursalResponse, RutaProveedoresRequest
 from app.database import AsyncSessionLocal
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
@@ -323,7 +323,7 @@ async def obtener_producto_cercano(
                 })
 
         if not resultados:
-            raise HTTPException(status_code=404, detail="No hay proveedores que tengan todos los productos")
+            raise HTTPException(status_code=204, detail="No hay proveedores que tengan todos los productos")
 
         # 6. Devolver los 3 más baratos
         resultados.sort(key=lambda x: x["Precio"])
@@ -331,3 +331,67 @@ async def obtener_producto_cercano(
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error al obtener precios cercanos: {str(e)}")
+
+
+
+@router.post("/ruta-multiples-listas")
+async def obtener_sucursales_por_proveedor_mas_cercanas(
+    datos: RutaProveedoresRequest,
+    db: AsyncSession = Depends(get_db)
+):
+    lat = datos.lat
+    lng = datos.lng
+    ids_proveedores = list(dict.fromkeys(datos.ids_proveedores))  # ✅ eliminar duplicados
+
+    if not ids_proveedores:
+        raise HTTPException(status_code=400, detail="Debes proporcionar al menos un IdProveedor")
+
+    try:
+        # 1. Obtener todas las sucursales de los proveedores dados
+        result = await db.execute(
+            select(
+                Sucursal.IdSucursal,
+                Sucursal.NombreSucursal,
+                Sucursal.Latitud,
+                Sucursal.Longitud,
+                Sucursal.IdProveedor
+            ).where(Sucursal.IdProveedor.in_(ids_proveedores))
+        )
+        sucursales = result.all()
+
+        if not sucursales:
+            raise HTTPException(status_code=404, detail="No se encontraron sucursales para los proveedores dados")
+
+        # 2. Calcular distancia a cada sucursal
+        sucursales_con_distancia = []
+        for s in sucursales:
+            try:
+                latitud = float(str(s.Latitud).replace(",", "").strip())
+                longitud = float(str(s.Longitud).replace(",", "").strip())
+                distancia = geodesic((lat, lng), (latitud, longitud)).km
+            except Exception:
+                continue  # Si hay error de formato, ignoramos esa sucursal
+
+            sucursales_con_distancia.append({
+                "IdSucursal": s.IdSucursal,
+                "NombreSucursal": s.NombreSucursal,
+                "Latitud": latitud,
+                "Longitud": longitud,
+                "IdProveedor": s.IdProveedor,
+                "Distancia": distancia
+            })
+
+        if not sucursales_con_distancia:
+            raise HTTPException(status_code=404, detail="No se pudo calcular distancia a ninguna sucursal válida")
+
+        # 3. Obtener la sucursal más cercana por proveedor
+        sucursales_por_proveedor = {}
+        for suc in sorted(sucursales_con_distancia, key=lambda x: x["Distancia"]):
+            if suc["IdProveedor"] not in sucursales_por_proveedor:
+                sucursales_por_proveedor[suc["IdProveedor"]] = suc
+
+        # 4. Retornar lista de sucursales más cercanas
+        return list(sucursales_por_proveedor.values())
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error al buscar sucursales más cercanas: {str(e)}")
