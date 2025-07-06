@@ -9,6 +9,7 @@ from app.database import AsyncSessionLocal
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from datetime import datetime
+from sqlalchemy import delete  
 from sqlalchemy import or_
 
 
@@ -212,7 +213,7 @@ async def actualizar_producto(
 # Eliminar un producto
 @router.delete("/producto/{id}", response_model=ProductoResponse)
 async def eliminar_producto(id: int, db: AsyncSession = Depends(get_db)):
-    # Obtener el producto por id
+    # Buscar el producto
     result = await db.execute(select(Producto).where(Producto.IdProducto == id))
     producto = result.scalar_one_or_none()
 
@@ -220,11 +221,18 @@ async def eliminar_producto(id: int, db: AsyncSession = Depends(get_db)):
         raise HTTPException(status_code=404, detail="No existe el producto")
 
     try:
-        # Eliminar el producto
+        # 1. Eliminar todas las relaciones en ProductoProveedor con ese producto
+        await db.execute(
+            delete(ProductoProveedor).where(ProductoProveedor.IdProducto == id)
+        )
+
+        # 2. Eliminar el producto en sí
         await db.delete(producto)
+
+        # 3. Confirmar cambios
         await db.commit()
-    
-        return producto  # Devuelve el producto antes de eliminarlo
+
+        return producto  # Devuelve el producto eliminado
 
     except Exception as e:
         await db.rollback()
@@ -232,7 +240,7 @@ async def eliminar_producto(id: int, db: AsyncSession = Depends(get_db)):
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail={"error": "Error al eliminar producto", "details": str(e)}
         )
-
+    
 
 # Obtener productos por categoria
 @router.get("/productocategoria/{id}", response_model=List[ProductoResponse])
