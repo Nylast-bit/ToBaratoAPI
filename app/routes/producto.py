@@ -1,7 +1,7 @@
 from fastapi import APIRouter, HTTPException, Depends, status
 from sqlalchemy.orm import Session
 from typing import List, Annotated
-from app.models.models import Producto, Categoria, UnidadMedida, Proveedor, ProductoProveedor
+from app.models.models import Producto, Categoria, UnidadMedida, Proveedor, ProductoProveedor, ListaProducto
 from app.schemas.producto import ProductoCreate, ProductoResponse, ProductoUpdate, BigProductoProveedorResponse
 from sqlalchemy.orm import joinedload
 from app.schemas.productoproveedor import ProductoProveedorResponse
@@ -221,18 +221,23 @@ async def eliminar_producto(id: int, db: AsyncSession = Depends(get_db)):
         raise HTTPException(status_code=404, detail="No existe el producto")
 
     try:
-        # 1. Eliminar todas las relaciones en ProductoProveedor con ese producto
+        # 1. Eliminar relaciones con proveedores
         await db.execute(
             delete(ProductoProveedor).where(ProductoProveedor.IdProducto == id)
         )
 
-        # 2. Eliminar el producto en sí
+        # 2. Eliminar relaciones en ListaProducto
+        await db.execute(
+            delete(ListaProducto).where(ListaProducto.IdProducto == id)
+        )
+
+        # 3. Eliminar el producto
         await db.delete(producto)
 
-        # 3. Confirmar cambios
+        # 4. Confirmar
         await db.commit()
 
-        return producto  # Devuelve el producto eliminado
+        return producto
 
     except Exception as e:
         await db.rollback()
