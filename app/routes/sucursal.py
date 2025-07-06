@@ -236,6 +236,10 @@ async def obtener_producto_cercano(
     lat = datos.lat
     lng = datos.lng
     ids_productos = datos.ids_productos
+    cantidades = datos.lista_cantidad
+
+    if len(ids_productos) != len(cantidades):
+        raise HTTPException(status_code=400, detail="La cantidad de productos no coincide con la cantidad de unidades")
 
     try:
         # 1. Obtener todas las sucursales
@@ -253,7 +257,7 @@ async def obtener_producto_cercano(
         if not sucursales:
             raise HTTPException(status_code=404, detail="No hay sucursales registradas")
 
-        # 2. Calcular distancia a cada sucursal (conversión segura de lat/lng)
+        # 2. Calcular distancia a cada sucursal
         sucursales_con_distancia = []
         for s in sucursales:
             try:
@@ -261,7 +265,7 @@ async def obtener_producto_cercano(
                 longitud = float(str(s.Longitud).replace(",", "").strip())
                 distancia = geodesic((lat, lng), (latitud, longitud)).km
             except Exception:
-                continue  # Ignorar sucursales con datos corruptos
+                continue
 
             sucursales_con_distancia.append({
                 "IdSucursal": s.IdSucursal,
@@ -278,7 +282,7 @@ async def obtener_producto_cercano(
         # 3. Ordenar por cercanía
         sucursales_con_distancia.sort(key=lambda x: x["Distancia"])
 
-        # 4. Filtrar: solo una sucursal por proveedor (la más cercana)
+        # 4. Filtrar: solo una sucursal por proveedor
         proveedor_visto = set()
         sucursales_filtradas = []
         for suc in sucursales_con_distancia:
@@ -286,28 +290,31 @@ async def obtener_producto_cercano(
                 proveedor_visto.add(suc["IdProveedor"])
                 sucursales_filtradas.append(suc)
 
-        # 5. Buscar precios de todos los productos en cada proveedor
+        # 5. Calcular total por proveedor con cantidades
         resultados = []
         for suc in sucursales_filtradas:
             total = Decimal("0.0")
             precios_completos = True
 
-            for id_prod in ids_productos:
+            for idx, id_prod in enumerate(ids_productos):
+                cantidad = cantidades[idx]
+
                 result_precio = await db.execute(
                     select(ProductoProveedor.Precio).where(
                         ProductoProveedor.IdProveedor == suc["IdProveedor"],
                         ProductoProveedor.IdProducto == id_prod
                     )
                 )
-                precio = result_precio.scalar()
-                if precio is None:
+                precio_unitario = result_precio.scalar()
+                if precio_unitario is None:
                     precios_completos = False
                     break
-                total += precio
+
+                total += precio_unitario * cantidad
 
             if precios_completos:
                 resultados.append({
-                    "NombreSucursal": suc["NombreSucursal"],#312
+                    "NombreSucursal": suc["NombreSucursal"],
                     "Latitud": suc["Latitud"],
                     "Longitud": suc["Longitud"],
                     "IdProveedor": suc["IdProveedor"],
