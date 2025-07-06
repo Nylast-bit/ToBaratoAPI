@@ -228,7 +228,6 @@ async def eliminar_sucursal(id: int, db: AsyncSession = Depends(get_db)):
 
 
 
-
 @router.post("/sucursal-cercana", response_model=list[ProductoSucursalResponse])
 async def obtener_producto_cercano(
     datos: UbicacionProductoRequest,
@@ -254,18 +253,27 @@ async def obtener_producto_cercano(
         if not sucursales:
             raise HTTPException(status_code=404, detail="No hay sucursales registradas")
 
-        # 2. Calcular distancia a cada sucursal
+        # 2. Calcular distancia a cada sucursal (conversión segura de lat/lng)
         sucursales_con_distancia = []
         for s in sucursales:
-            distancia = geodesic((lat, lng), (s.Latitud, s.Longitud)).km
+            try:
+                latitud = float(str(s.Latitud).replace(",", "").strip())
+                longitud = float(str(s.Longitud).replace(",", "").strip())
+                distancia = geodesic((lat, lng), (latitud, longitud)).km
+            except Exception:
+                continue  # Ignorar sucursales con datos corruptos
+
             sucursales_con_distancia.append({
                 "IdSucursal": s.IdSucursal,
                 "NombreSucursal": s.NombreSucursal,
-                "Latitud": s.Latitud,
-                "Longitud": s.Longitud,
+                "Latitud": latitud,
+                "Longitud": longitud,
                 "IdProveedor": s.IdProveedor,
                 "Distancia": distancia
             })
+
+        if not sucursales_con_distancia:
+            raise HTTPException(status_code=404, detail="No se pudo calcular la distancia a ninguna sucursal")
 
         # 3. Ordenar por cercanía
         sucursales_con_distancia.sort(key=lambda x: x["Distancia"])
@@ -299,7 +307,7 @@ async def obtener_producto_cercano(
 
             if precios_completos:
                 resultados.append({
-                    "NombreSucursal": suc["NombreSucursal"],
+                    "NombreSucursal": suc["NombreSucursal"],#312
                     "Latitud": suc["Latitud"],
                     "Longitud": suc["Longitud"],
                     "IdProveedor": suc["IdProveedor"],
