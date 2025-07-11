@@ -33,7 +33,7 @@ GEMINI_API_KEY = "AIzaSyAtr1PnZ3sl8g26aw-gQVD-cqXJ2lxFNKw"
 genai.configure(api_key=GEMINI_API_KEY)
 
 def consultar_gemini(prompt: str) -> str:
-    model = genai.GenerativeModel("gemini-pro")
+    model = genai.GenerativeModel("models/gemini-pro")
     response = model.generate_content(prompt)
     return response.text
 
