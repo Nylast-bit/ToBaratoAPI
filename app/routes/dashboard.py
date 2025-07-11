@@ -9,7 +9,8 @@ from app.schemas.listaproductos import ListaProductoCreate, ListaProductoRespons
 from app.database import AsyncSessionLocal
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import func, extract, desc
-
+import google.generativeai as genai
+import json
 from sqlalchemy.future import select
 from app.models.models import Producto, ListaProducto, Lista, Proveedor, Sucursal, Categoria
 import os
@@ -25,21 +26,17 @@ async def get_db():
 
 db_dependency = Annotated[Session, Depends(get_db)]
 
-def run_llama_response(prompt: str, max_tokens: int = 512) -> str:
-    llama_path = os.path.abspath("llama.cpp/main")
-    model_path = os.path.abspath("models/tinyllama-1.1b-chat-v1.0.Q4_K_M.gguf")
 
-    result = subprocess.run(
-        [llama_path, "-m", model_path, "-p", prompt, "-n", str(max_tokens)],
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        text=True
-    )
 
-    if result.returncode != 0:
-        raise Exception(result.stderr.strip())
 
-    return result.stdout.strip()
+GEMINI_API_KEY = "AIzaSyAtr1PnZ3sl8g26aw-gQVD-cqXJ2lxFNKw"
+genai.configure(api_key=GEMINI_API_KEY)
+
+def consultar_gemini(prompt: str) -> str:
+    model = genai.GenerativeModel("gemini-pro")
+    response = model.generate_content(prompt)
+    return response.text
+
 
 
 @router.get("/dashboard/insights")
@@ -191,12 +188,12 @@ async def obtener_insights(db: AsyncSession = Depends(get_db)):
     return insights
 
 @router.get("/dashboard/analizar-insights")
-async def analizar_insights_llm(db: AsyncSession = Depends(get_db)):
+async def analizar_insights_con_ia(db: AsyncSession = Depends(get_db)):
     try:
-        # Reutiliza la función que ya tienes
-        from .dashboard import obtener_insights  # solo si está en el mismo archivo, si no, importa bien
+        from .dashboard import obtener_insights  # si está en otro archivo, ajusta el import
 
         insights = await obtener_insights(db)
+
         prompt = f"""
         Eres un asesor de negocios experto. Este JSON contiene información sobre productos más comprados, días frecuentes, proveedores y tendencias.
         Da recomendaciones accionables para cada proveedor (ej: mejores días, productos más vendidos, horarios, promociones potenciales):
@@ -204,10 +201,23 @@ async def analizar_insights_llm(db: AsyncSession = Depends(get_db)):
         {json.dumps(insights, indent=2)}
         """
 
-        respuesta = run_llama_response(prompt, max_tokens=512)
+        respuesta = consultar_gemini(prompt)
         return {"recomendaciones": respuesta}
 
     except Exception as e:
         return {"error": str(e)}
+    
 
+@router.post("/dashboard/analizar-pregunta")
+async def analizar_pregunta(request: Request):
+    body = await request.json()
+    pregunta = body.get("pregunta")
 
+    if not pregunta:
+        return {"error": "Debes enviar una 'pregunta'."}
+
+    try:
+        respuesta = consultar_gemini(pregunta)
+        return {"respuesta": respuesta}
+    except Exception as e:
+        return {"error": str(e)}
