@@ -12,6 +12,7 @@ from sqlalchemy import func, extract, desc
 import google.generativeai as genai
 import json
 from sqlalchemy.future import select
+import requests
 from app.models.models import Producto, ListaProducto, Lista, Proveedor, Sucursal, Categoria
 import os
 
@@ -32,11 +33,33 @@ db_dependency = Annotated[Session, Depends(get_db)]
 GEMINI_API_KEY = "AIzaSyAtr1PnZ3sl8g26aw-gQVD-cqXJ2lxFNKw"
 genai.configure(api_key=GEMINI_API_KEY)
 
-def consultar_gemini(prompt: str) -> str:
-    model = genai.GenerativeModel("models/gemini-pro")
-    response = model.generate_content(prompt)
-    return response.text
+GEMINI_ENDPOINT = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent"
 
+def consultar_gemini(prompt: str) -> str:
+    headers = {
+        "Content-Type": "application/json",
+        "X-goog-api-key": GEMINI_API_KEY
+    }
+
+    body = {
+        "contents": [
+            {
+                "parts": [{"text": prompt}]
+            }
+        ]
+    }
+
+    response = requests.post(GEMINI_ENDPOINT, headers=headers, json=body)
+
+    if response.status_code != 200:
+        raise Exception(f"Gemini API error: {response.status_code} -> {response.text}")
+
+    data = response.json()
+
+    try:
+        return data["candidates"][0]["content"]["parts"][0]["text"]
+    except KeyError:
+        return "Error: La respuesta de Gemini no tiene el formato esperado."
 
 
 @router.get("/dashboard/insights")
