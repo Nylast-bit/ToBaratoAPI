@@ -1,62 +1,62 @@
-# Multi-stage build para optimizar tamaño
+# Etapa builder (optimización)
 FROM python:3.11-slim as builder
 
-# Variables de entorno para optimización
 ENV PIP_DISABLE_PIP_VERSION_CHECK=1 \
     PIP_NO_CACHE_DIR=1 \
     PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1
 
-# Instalar dependencias del sistema necesarias para compilar
+# Instala dependencias de compilación
 RUN apt-get update && apt-get install -y \
     build-essential \
     libpq-dev \
     && rm -rf /var/lib/apt/lists/*
 
-# Crear directorio de trabajo
 WORKDIR /app
-
-# Copiar y instalar dependencias Python
 COPY requirements.txt .
+
+# Crear usuario en builder stage para consistencia
+RUN groupadd -r appuser && useradd -r -g appuser appuser
+
+# Instalar dependencias en directorio del usuario
 RUN pip install --no-cache-dir --user -r requirements.txt
 
-# Etapa final - imagen más ligera
+# Etapa final
 FROM python:3.11-slim
 
-# Variables de entorno
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
-    PATH="/root/.local/bin:$PATH"
+    PATH="/home/appuser/.local/bin:$PATH" \
+    PORT=8888
 
-# Instalar solo las dependencias runtime necesarias
+# Instalar solo librerías runtime necesarias
 RUN apt-get update && apt-get install -y \
     libpq5 \
+    curl \
     && rm -rf /var/lib/apt/lists/* \
     && apt-get autoremove -y \
     && apt-get clean
 
-# Crear usuario no-root para seguridad
-RUN groupadd -r appuser && useradd -r -g appuser appuser
+# Crear usuario no-root
+RUN groupadd -r appuser && useradd -r -g appuser -m appuser
 
-# Crear directorio de aplicación
 WORKDIR /app
 
-# Copiar dependencias instaladas desde builder
-COPY --from=builder /root/.local /root/.local
+# Copiar dependencias instaladas al home del usuario
+COPY --from=builder /root/.local /home/appuser/.local
+RUN chown -R appuser:appuser /home/appuser/.local
 
-# Copiar código de aplicación
+# Copiar código y cambiar permisos
 COPY . .
-
-# Cambiar permisos y usuario
 RUN chown -R appuser:appuser /app
+
 USER appuser
 
-# Healthcheck mejorado
-HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 \
-    CMD python -c "import asyncio; import asyncpg; asyncio.run(asyncpg.connect('$DATABASE_URL').close())" || exit 1
+# Healthcheck mejorado - verifica que la app responda
+HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
+    CMD curl -f http://localhost:${PORT}/health || exit 1
 
-# Exponer puerto
-EXPOSE 8000
+EXPOSE ${PORT}
 
-# Comando para producción (sin --reload)
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8888", "--workers", "1"]
+# Comando con puerto consistente
+CMD uvicorn app.main:app --host 0.0.0.0 --port ${PORT} --workers 1
