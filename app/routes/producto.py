@@ -1,13 +1,15 @@
 from fastapi import APIRouter, HTTPException, Depends, status
 from sqlalchemy.orm import Session
 from typing import List, Annotated
-from app.models.models import Producto, Categoria, UnidadMedida, Proveedor, ProductoProveedor
-from app.schemas.producto import ProductoCreate, ProductoResponse, ProductoUpdate
+from app.models.models import Producto, Categoria, UnidadMedida, Proveedor, ProductoProveedor, ListaProducto
+from app.schemas.producto import ProductoCreate, ProductoResponse, ProductoUpdate, BigProductoProveedorResponse
+from sqlalchemy.orm import joinedload
 from app.schemas.productoproveedor import ProductoProveedorResponse
 from app.database import AsyncSessionLocal
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from datetime import datetime
+from sqlalchemy import delete  
 from sqlalchemy import or_
 
 
@@ -211,7 +213,7 @@ async def actualizar_producto(
 # Eliminar un producto
 @router.delete("/producto/{id}", response_model=ProductoResponse)
 async def eliminar_producto(id: int, db: AsyncSession = Depends(get_db)):
-    # Obtener el producto por id
+    # Buscar el producto
     result = await db.execute(select(Producto).where(Producto.IdProducto == id))
     producto = result.scalar_one_or_none()
 
@@ -219,11 +221,23 @@ async def eliminar_producto(id: int, db: AsyncSession = Depends(get_db)):
         raise HTTPException(status_code=404, detail="No existe el producto")
 
     try:
-        # Eliminar el producto
+        # 1. Eliminar relaciones con proveedores
+        await db.execute(
+            delete(ProductoProveedor).where(ProductoProveedor.IdProducto == id)
+        )
+
+        # 2. Eliminar relaciones en ListaProducto
+        await db.execute(
+            delete(ListaProducto).where(ListaProducto.IdProducto == id)
+        )
+
+        # 3. Eliminar el producto
         await db.delete(producto)
+
+        # 4. Confirmar
         await db.commit()
-    
-        return producto  # Devuelve el producto antes de eliminarlo
+
+        return producto
 
     except Exception as e:
         await db.rollback()
@@ -231,7 +245,7 @@ async def eliminar_producto(id: int, db: AsyncSession = Depends(get_db)):
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail={"error": "Error al eliminar producto", "details": str(e)}
         )
-
+    
 
 # Obtener productos por categoria
 @router.get("/productocategoria/{id}", response_model=List[ProductoResponse])
@@ -292,11 +306,9 @@ async def obtener_productos_por_proveedor(
 ):
     try:
         # 1. Verificar si el proveedor existe
-        result_proveedor = await db.execute(
+        proveedor = await db.scalar(
             select(Proveedor).where(Proveedor.IdProveedor == id_proveedor)
         )
-        proveedor = result_proveedor.scalar_one_or_none()
-
         if not proveedor:
             raise HTTPException(
                 status_code=404,
@@ -304,24 +316,18 @@ async def obtener_productos_por_proveedor(
             )
 
         # 2. Obtener IDs de productos asociados a ese proveedor
-        result_relaciones = await db.execute(
-            select(ProductoProveedor.IdProducto).where(
+        result = await db.execute(
+            select(Producto).join(ProductoProveedor).where(
                 ProductoProveedor.IdProveedor == id_proveedor
             )
         )
-        ids_productos = result_relaciones.scalars().all()
+        productos = result.scalars().all()
 
-        if not ids_productos:
+        if not productos:
             raise HTTPException(
                 status_code=404,
                 detail={"error": "Este proveedor no tiene productos asociados"}
             )
-
-        # 3. Obtener los productos
-        result_productos = await db.execute(
-            select(Producto).where(Producto.IdProducto.in_(ids_productos))
-        )
-        productos = result_productos.scalars().all()
 
         return productos
 
@@ -334,3 +340,9 @@ async def obtener_productos_por_proveedor(
             }
         )
 
+@router.get("/precios-productos/proveedor/{id}", response_model=List[BigProductoProveedorResponse])
+async def obtener_productos_con_precios(id: int, db: AsyncSession = Depends(get_db)):
+    stmt = select(ProductoProveedor).options(joinedload(ProductoProveedor.Producto)).where(ProductoProveedor.IdProveedor == id)
+    result = await db.execute(stmt)
+    productos = result.scalars().all()
+    return productos

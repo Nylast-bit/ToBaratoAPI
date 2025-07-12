@@ -2,7 +2,7 @@ from fastapi import APIRouter, HTTPException, Depends, status, Query
 from sqlalchemy.orm import Session
 from typing import List, Annotated
 from app.models.models import Sucursal, Proveedor, ProductoProveedor
-from app.schemas.sucursal import SucursalCreate, SucursalResponse, SucursalUpdate, UbicacionProductoRequest, ProductoSucursalResponse
+from app.schemas.sucursal import SucursalCreate, SucursalResponse, SucursalUpdate, UbicacionProductoRequest, ProductoSucursalResponse, RutaProveedoresRequest
 from app.database import AsyncSessionLocal
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
@@ -228,7 +228,6 @@ async def eliminar_sucursal(id: int, db: AsyncSession = Depends(get_db)):
 
 
 
-
 @router.post("/sucursal-cercana", response_model=list[ProductoSucursalResponse])
 async def obtener_producto_cercano(
     datos: UbicacionProductoRequest,
@@ -237,6 +236,10 @@ async def obtener_producto_cercano(
     lat = datos.lat
     lng = datos.lng
     ids_productos = datos.ids_productos
+    cantidades = datos.lista_cantidad
+
+    if len(ids_productos) != len(cantidades):
+        raise HTTPException(status_code=400, detail="La cantidad de productos no coincide con la cantidad de unidades")
 
     try:
         # 1. Obtener todas las sucursales
@@ -257,20 +260,29 @@ async def obtener_producto_cercano(
         # 2. Calcular distancia a cada sucursal
         sucursales_con_distancia = []
         for s in sucursales:
-            distancia = geodesic((lat, lng), (s.Latitud, s.Longitud)).km
+            try:
+                latitud = float(str(s.Latitud).replace(",", "").strip())
+                longitud = float(str(s.Longitud).replace(",", "").strip())
+                distancia = geodesic((lat, lng), (latitud, longitud)).km
+            except Exception:
+                continue
+
             sucursales_con_distancia.append({
                 "IdSucursal": s.IdSucursal,
                 "NombreSucursal": s.NombreSucursal,
-                "Latitud": s.Latitud,
-                "Longitud": s.Longitud,
+                "Latitud": latitud,
+                "Longitud": longitud,
                 "IdProveedor": s.IdProveedor,
                 "Distancia": distancia
             })
 
+        if not sucursales_con_distancia:
+            raise HTTPException(status_code=404, detail="No se pudo calcular la distancia a ninguna sucursal")
+
         # 3. Ordenar por cercanía
         sucursales_con_distancia.sort(key=lambda x: x["Distancia"])
 
-        # 4. Filtrar: solo una sucursal por proveedor (la más cercana)
+        # 4. Filtrar: solo una sucursal por proveedor
         proveedor_visto = set()
         sucursales_filtradas = []
         for suc in sucursales_con_distancia:
@@ -278,24 +290,27 @@ async def obtener_producto_cercano(
                 proveedor_visto.add(suc["IdProveedor"])
                 sucursales_filtradas.append(suc)
 
-        # 5. Buscar precios de todos los productos en cada proveedor
+        # 5. Calcular total por proveedor con cantidades
         resultados = []
         for suc in sucursales_filtradas:
             total = Decimal("0.0")
             precios_completos = True
 
-            for id_prod in ids_productos:
+            for idx, id_prod in enumerate(ids_productos):
+                cantidad = cantidades[idx]
+
                 result_precio = await db.execute(
                     select(ProductoProveedor.Precio).where(
                         ProductoProveedor.IdProveedor == suc["IdProveedor"],
                         ProductoProveedor.IdProducto == id_prod
                     )
                 )
-                precio = result_precio.scalar()
-                if precio is None:
+                precio_unitario = result_precio.scalar()
+                if precio_unitario is None:
                     precios_completos = False
                     break
-                total += precio
+
+                total += precio_unitario * cantidad
 
             if precios_completos:
                 resultados.append({
@@ -308,7 +323,7 @@ async def obtener_producto_cercano(
                 })
 
         if not resultados:
-            raise HTTPException(status_code=404, detail="No hay proveedores que tengan todos los productos")
+            raise HTTPException(status_code=204, detail="No hay proveedores que tengan todos los productos")
 
         # 6. Devolver los 3 más baratos
         resultados.sort(key=lambda x: x["Precio"])
@@ -316,3 +331,67 @@ async def obtener_producto_cercano(
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error al obtener precios cercanos: {str(e)}")
+
+
+
+@router.post("/ruta-multiples-listas")
+async def obtener_sucursales_por_proveedor_mas_cercanas(
+    datos: RutaProveedoresRequest,
+    db: AsyncSession = Depends(get_db)
+):
+    lat = datos.lat
+    lng = datos.lng
+    ids_proveedores = list(dict.fromkeys(datos.ids_proveedores))  # ✅ eliminar duplicados
+
+    if not ids_proveedores:
+        raise HTTPException(status_code=400, detail="Debes proporcionar al menos un IdProveedor")
+
+    try:
+        # 1. Obtener todas las sucursales de los proveedores dados
+        result = await db.execute(
+            select(
+                Sucursal.IdSucursal,
+                Sucursal.NombreSucursal,
+                Sucursal.Latitud,
+                Sucursal.Longitud,
+                Sucursal.IdProveedor
+            ).where(Sucursal.IdProveedor.in_(ids_proveedores))
+        )
+        sucursales = result.all()
+
+        if not sucursales:
+            raise HTTPException(status_code=404, detail="No se encontraron sucursales para los proveedores dados")
+
+        # 2. Calcular distancia a cada sucursal
+        sucursales_con_distancia = []
+        for s in sucursales:
+            try:
+                latitud = float(str(s.Latitud).replace(",", "").strip())
+                longitud = float(str(s.Longitud).replace(",", "").strip())
+                distancia = geodesic((lat, lng), (latitud, longitud)).km
+            except Exception:
+                continue  # Si hay error de formato, ignoramos esa sucursal
+
+            sucursales_con_distancia.append({
+                "IdSucursal": s.IdSucursal,
+                "NombreSucursal": s.NombreSucursal,
+                "Latitud": latitud,
+                "Longitud": longitud,
+                "IdProveedor": s.IdProveedor,
+                "Distancia": distancia
+            })
+
+        if not sucursales_con_distancia:
+            raise HTTPException(status_code=404, detail="No se pudo calcular distancia a ninguna sucursal válida")
+
+        # 3. Obtener la sucursal más cercana por proveedor
+        sucursales_por_proveedor = {}
+        for suc in sorted(sucursales_con_distancia, key=lambda x: x["Distancia"]):
+            if suc["IdProveedor"] not in sucursales_por_proveedor:
+                sucursales_por_proveedor[suc["IdProveedor"]] = suc
+
+        # 4. Retornar lista de sucursales más cercanas
+        return list(sucursales_por_proveedor.values())
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error al buscar sucursales más cercanas: {str(e)}")

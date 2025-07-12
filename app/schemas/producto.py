@@ -2,6 +2,8 @@ from pydantic import BaseModel, Field, HttpUrl, validator
 from datetime import datetime
 from typing import Optional
 from sqlalchemy import Column, Float
+from decimal import Decimal
+
 
 class ProductoBase(BaseModel):
     IdCategoria: int = Field(..., alias="IdCategoria")
@@ -30,6 +32,16 @@ class ProductoSugeridoResponse(BaseModel):
     Precio: float
 
 
+
+class BigProductoProveedorResponse(BaseModel):
+    IdProducto: int
+    IdProveedor: int
+    Precio: Decimal
+    PrecioOferta: Optional[Decimal]
+    DescripcionOferta: Optional[str]
+    FechaOferta: Optional[datetime]
+    FechaPrecio: Optional[datetime]
+    Producto: ProductoBase
 
 class ProductoResponse(ProductoBase):
     IdProducto: int 

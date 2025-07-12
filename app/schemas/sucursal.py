@@ -57,6 +57,12 @@ class UbicacionProductoRequest(BaseModel):
     lat: float
     lng: float
     ids_productos: List[int]
+    lista_cantidad: List[int]
+
+class RutaProveedoresRequest(BaseModel):
+    lat: float
+    lng: float
+    ids_proveedores: List[int]
 
 class SucursalResponse(SucursalBase):
     IdSucursal: int = Field(..., alias="IdSucursal")

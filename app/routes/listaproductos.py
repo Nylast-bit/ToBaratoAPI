@@ -5,9 +5,10 @@ from app.models.models import ListaProducto
 from app.schemas.listaproductos import ListaProductoCreate, ListaProductoResponse, ListaProductoUpdate
 from app.database import AsyncSessionLocal
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import func, extract, desc
+
 from sqlalchemy.future import select
-
-
+from app.models.models import Producto, ListaProducto, Lista, Proveedor, Sucursal, Categoria
 
 router = APIRouter()
 
@@ -76,6 +77,7 @@ async def obtener_producto_lista(
         )
     
     return relacion
+
 
 
 

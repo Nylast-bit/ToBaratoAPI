@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware  
 from app.database import engine, Base, init_db
-from app.routes import tipoproveedor, tipousuario, categoria, unidadmedida, usuario, lista, producto, proveedor, listaproductos, usuarioproveedor, productoproveedor, sucursal
+from app.routes import tipoproveedor, tipousuario, categoria, unidadmedida, usuario, lista, producto, proveedor, listaproductos, usuarioproveedor, productoproveedor, sucursal, dashboard
 
 app = FastAPI(title="To-Barato API")
 
@@ -27,6 +27,7 @@ app.include_router(sucursal.router, prefix="/api")
 app.include_router(listaproductos.router, prefix="/api")
 app.include_router(usuarioproveedor.router, prefix="/api")
 app.include_router(productoproveedor.router, prefix="/api")
+app.include_router(dashboard.router, prefix="/api")
 
 @app.on_event("startup")
 async def startup():

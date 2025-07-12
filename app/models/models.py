@@ -77,7 +77,7 @@ class Proveedor(Base):
     
     TipoProveedor = relationship("TipoProveedor", back_populates="Proveedores")
     Listas = relationship("Lista", back_populates="Proveedor")
-    Productos = relationship("ProductoProveedor", back_populates="Proveedor")
+    Productos = relationship("ProductoProveedor", back_populates="Proveedor", cascade="all, delete-orphan")
     Usuarios = relationship("UsuarioProveedor", back_populates="Proveedor")
     Sucursales = relationship("Sucursal", back_populates="Proveedor")
 
@@ -95,7 +95,7 @@ class Sucursal(Base):
 
 class Producto(Base):
     __tablename__ = 'Producto'
-    
+        
     IdProducto = Column(Integer, primary_key=True, autoincrement=True)
     IdCategoria = Column(Integer, ForeignKey('Categoria.IdCategoria'), nullable=False)
     IdUnidadMedida = Column(Integer, ForeignKey('UnidadMedida.IdUnidadMedida'), nullable=False)
@@ -103,12 +103,12 @@ class Producto(Base):
     UrlImagen = Column(Text, nullable=False)
     Descripcion = Column(Text)
     FechaCreacion = Column(DateTime, default=now_bolivia)
-    
+        
     Categoria = relationship("Categoria", back_populates="Productos")
     UnidadMedida = relationship("UnidadMedida", back_populates="Productos")
     Listas = relationship("ListaProducto", back_populates="Producto")
-    Proveedores = relationship("ProductoProveedor", back_populates="Producto")
-
+    Proveedores = relationship("ProductoProveedor", back_populates="Producto")    
+        
 class Lista(Base):
     __tablename__ = 'Lista'
     
