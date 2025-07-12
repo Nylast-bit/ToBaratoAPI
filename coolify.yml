@@ -1,0 +1,28 @@
+# Coolify deployment configuration
+# This file is optional but helps with deployment
+
+# Database service (PostgreSQL)
+database:
+  image: postgres:15-alpine
+  environment:
+    POSTGRES_USER: ${DB_USER}
+    POSTGRES_PASSWORD: ${DB_PASSWORD}
+    POSTGRES_DB: ${DB_NAME}
+  volumes:
+    - postgres_data:/var/lib/postgresql/data
+  healthcheck:
+    test: ["CMD-SHELL", "pg_isready -U ${DB_USER}"]
+    interval: 10s
+    timeout: 5s
+    retries: 5
+
+# Main application
+app:
+  build: .
+  ports:
+    - "8000:8000"
+  environment:
+    DATABASE_URL: postgresql+asyncpg://${DB_USER}:${DB_PASSWORD}@database:5432/${DB_NAME}
+  depends_on:
+    database:
+      condition: service_healthy
