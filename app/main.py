@@ -37,3 +37,8 @@ async def startup():
 @app.get("/")
 def root():
     return {"message": "¡API viva!"}
+
+@app.get("/health")
+async def health_check():
+    """Endpoint simple para healthcheck del contenedor Docker"""
+    return {"status": "ok"}
