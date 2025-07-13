@@ -1,31 +1,32 @@
-from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, AsyncEngine
+from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 from sqlalchemy.orm import sessionmaker, declarative_base
 import os
 from dotenv import load_dotenv
 import asyncio
 
-load_dotenv()
+load_dotenv()  # Cargar las variables del .env
 
-# Variables de entorno para la base de datos
-DB_USER = os.getenv("DB_USER", "postgres")
-DB_PASSWORD = os.getenv("DB_PASSWORD", "tzAo3bevuc9kU6F6kY651qcnyqGXuQEn0DbYNtGNjX37zLPeH4AdauGmYqVG5OSK")
-DB_HOST = os.getenv("DB_HOST", "127.0.0.1")
-DB_PORT = os.getenv("DB_PORT", "5432")
-DB_NAME = os.getenv("DB_NAME", "postgres")
+# 🚀 Intenta primero leer DATABASE_URL completa del entorno (ideal en producción)
+DATABASE_URL = os.getenv("DATABASE_URL")
 
-# Construir URL de la base de datos
-URL_DATABASE = os.getenv(
-    "DATABASE_URL", 
-    f"postgresql+asyncpg://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
-)
+# Si no existe DATABASE_URL completa, construirla desde variables individuales (útil en desarrollo)
+if not DATABASE_URL:
+    DB_USER = os.getenv("DB_USER", "postgres")
+    DB_PASSWORD = os.getenv("DB_PASSWORD", "postgres")
+    DB_HOST = os.getenv("DB_HOST", "127.0.0.1")
+    DB_PORT = os.getenv("DB_PORT", "5432")
+    DB_NAME = os.getenv("DB_NAME", "postgres")
 
-if not URL_DATABASE:
-    raise ValueError("La URL de la base de datos no está configurada")
+    DATABASE_URL = f"postgresql+asyncpg://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
 
-# ✅ Motor asincrónico
-engine = create_async_engine(URL_DATABASE, echo=True)
+# Validación explícita
+if not DATABASE_URL:
+    raise ValueError("DATABASE_URL no está configurada correctamente.")
 
-# ✅ Sesión asincrónica
+# Crear el motor asíncrono
+engine = create_async_engine(DATABASE_URL, echo=True)
+
+# Crear la sesión
 AsyncSessionLocal = sessionmaker(
     bind=engine,
     expire_on_commit=False,
@@ -34,26 +35,15 @@ AsyncSessionLocal = sessionmaker(
     autocommit=False,
 )
 
-# Base declarativa
+# Declaración base para los modelos
 Base = declarative_base()
 
-# Función para inicializar la base de datos
+# Inicialización de la base de datos
 async def init_db():
     async with engine.begin() as conn:
-        # Crear todas las tablas en la base de datos
-        await conn.run_sync(
-            lambda conn: Base.metadata.create_all(
-                bind=conn,
-                tables=None,  # Todas las tablas
-                checkfirst=True  # Verificar primero si existen
-            )
-)
+        await conn.run_sync(Base.metadata.create_all)
 
-
-# Example of how to use it in your main application
-async def main():
-    await init_db()
-    print("Database initialized!")
-
+# Ejecutar de forma independiente (por ejemplo, para pruebas)
 if __name__ == "__main__":
-    asyncio.run(main())
+    asyncio.run(init_db())
+    print("✅ Base de datos inicializada correctamente.")
