@@ -20,9 +20,9 @@ database:
 app:
   build: .
   ports:
-    - "8000:8000"
+    - "8888:8888"
   environment:
-    DATABASE_URL: postgresql+asyncpg://${DB_USER}:${DB_PASSWORD}@database:5432/${DB_NAME}
+    DATABASE_URL: ${DATABASE_URL}
   depends_on:
     database:
       condition: service_healthy

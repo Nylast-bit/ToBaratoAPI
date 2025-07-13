@@ -4,9 +4,9 @@ services:
   web:
     build: .
     ports:
-      - "8000:8000"
+      - "8888:8888"
     environment:
-      - DATABASE_URL=postgresql+asyncpg://postgres:postgres@db:5432/tobarato_db
+      - DATABASE_URL=${DATABASE_URL}
     depends_on:
       db:
         condition: service_healthy
@@ -18,8 +18,8 @@ services:
     image: postgres:15-alpine
     environment:
       POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: tobarato_db
+      POSTGRES_PASSWORD: tzAo3bevuc9kU6F6kY651qcnyqGXuQEn0DbYNtGNjX37zLPeH4AdauGmYqVG5OSK
+      POSTGRES_DB: postgres
     ports:
       - "5432:5432"
     volumes:
