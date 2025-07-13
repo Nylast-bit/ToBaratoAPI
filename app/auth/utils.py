@@ -6,7 +6,7 @@ import uuid
 import os
 import logging
 from sqlalchemy.ext.asyncio import AsyncSession
-from jwt import ExpiredSignatureError, PyJWTError
+from jwt.exceptions import ExpiredSignatureError, PyJWTError
 
 load_dotenv()
 
