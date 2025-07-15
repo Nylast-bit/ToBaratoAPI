@@ -401,8 +401,8 @@ async def obtener_precios_en_proveedores(id_producto: int, db: AsyncSession = De
     for pp in productos_proveedor:
         respuesta.append(ProductoPrecioProveedorResponse(
             IdProveedor=pp.IdProveedor,
-            NombreProveedor=pp.Proveedor.Nombre,
-            UrlImagenProveedor=pp.Proveedor.UrlImagen,
+            NombreProveedor=pp.Proveedor.Nombre,     # nombre correcto
+            UrlImagenProveedor=pp.Proveedor.UrlLogo, # URL logo correcto
             Precio=pp.Precio,
             PrecioOferta=pp.PrecioOferta,
             DescripcionOferta=pp.DescripcionOferta,
