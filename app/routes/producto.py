@@ -2,7 +2,9 @@ from fastapi import APIRouter, HTTPException, Depends, status
 from sqlalchemy.orm import Session
 from typing import List, Annotated
 from app.models.models import Producto, Categoria, UnidadMedida, Proveedor, ProductoProveedor, ListaProducto
-from app.schemas.producto import ProductoCreate, ProductoResponse, ProductoUpdate, BigProductoProveedorResponse
+from app.schemas.producto import ProductoCreate, ProductoResponse, ProductoUpdate, BigProductoProveedorResponse, ProductoConPrecioPromedioResponse, ProductoPrecioProveedorResponse
+from sqlalchemy import select, func
+from typing import List
 from sqlalchemy.orm import joinedload
 from app.schemas.productoproveedor import ProductoProveedorResponse
 from app.database import AsyncSessionLocal
@@ -10,6 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from datetime import datetime
 from sqlalchemy import delete  
+
 from sqlalchemy import or_
 
 
@@ -74,8 +77,6 @@ async def crear_producto(productoParam: ProductoCreate, db: Session = Depends(ge
             detail={"error": "Error al crear producto", "details": str(e)}
         )
 
-
-
 # Obtener todos los productos   
 @router.get("/producto", response_model=List[ProductoResponse])
 async def obtener_productos(db: AsyncSession = Depends(get_db)):
@@ -87,6 +88,39 @@ async def obtener_productos(db: AsyncSession = Depends(get_db)):
         raise HTTPException(status_code=404, detail="No se encontraron productos")
     
     return productos
+
+# Obtener todos los productos   
+@router.get("/productoavg", response_model=List[ProductoConPrecioPromedioResponse])
+async def obtener_productos(db: AsyncSession = Depends(get_db)):
+    # Obtener todos los productos
+    result = await db.execute(select(Producto))
+    productos = result.scalars().all()
+
+    if not productos:
+        raise HTTPException(status_code=404, detail="No se encontraron productos")
+    
+    respuesta = []
+    
+    for producto in productos:
+        # Obtener el promedio de precios desde ProductoProveedor
+        precio_result = await db.execute(
+            select(func.avg(ProductoProveedor.Precio))
+            .where(ProductoProveedor.IdProducto == producto.IdProducto)
+        )
+        precio_promedio = precio_result.scalar()
+        
+        respuesta.append(ProductoConPrecioPromedioResponse(
+            IdProducto=producto.IdProducto,
+            IdCategoria=producto.IdCategoria,
+            IdUnidadMedida=producto.IdUnidadMedida,
+            Nombre=producto.Nombre,
+            UrlImagen=producto.UrlImagen,
+            Descripcion=producto.Descripcion,
+            FechaCreacion=producto.FechaCreacion,
+            PrecioPromedio=float(precio_promedio) if precio_promedio is not None else None
+        ))
+    
+    return respuesta
 
 
 # Obtener un producto por su id
@@ -340,9 +374,40 @@ async def obtener_productos_por_proveedor(
             }
         )
 
+#
 @router.get("/precios-productos/proveedor/{id}", response_model=List[BigProductoProveedorResponse])
 async def obtener_productos_con_precios(id: int, db: AsyncSession = Depends(get_db)):
     stmt = select(ProductoProveedor).options(joinedload(ProductoProveedor.Producto)).where(ProductoProveedor.IdProveedor == id)
     result = await db.execute(stmt)
     productos = result.scalars().all()
     return productos
+
+
+@router.get("/precios-productos/{id_producto}", response_model=List[ProductoPrecioProveedorResponse])
+async def obtener_precios_en_proveedores(id_producto: int, db: AsyncSession = Depends(get_db)):
+    stmt = (
+        select(ProductoProveedor)
+        .options(joinedload(ProductoProveedor.Proveedor))
+        .where(ProductoProveedor.IdProducto == id_producto)
+    )
+
+    result = await db.execute(stmt)
+    productos_proveedor = result.scalars().all()
+
+    if not productos_proveedor:
+        raise HTTPException(status_code=404, detail="No hay precios para este producto en proveedores")
+
+    respuesta = []
+    for pp in productos_proveedor:
+        respuesta.append(ProductoPrecioProveedorResponse(
+            IdProveedor=pp.IdProveedor,
+            NombreProveedor=pp.Proveedor.Nombre,
+            UrlImagenProveedor=pp.Proveedor.UrlImagen,
+            Precio=pp.Precio,
+            PrecioOferta=pp.PrecioOferta,
+            DescripcionOferta=pp.DescripcionOferta,
+            FechaOferta=pp.FechaOferta,
+            FechaPrecio=pp.FechaPrecio
+        ))
+    
+    return respuesta

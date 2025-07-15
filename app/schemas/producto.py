@@ -31,7 +31,15 @@ class ProductoSugeridoResponse(BaseModel):
     IdProveedor: int
     Precio: float
 
-
+class ProductoConPrecioPromedioResponse(BaseModel):
+    IdProducto: int
+    IdCategoria: int
+    IdUnidadMedida: int
+    Nombre: str
+    UrlImagen: Optional[str]
+    Descripcion: Optional[str]
+    FechaCreacion: datetime
+    PrecioPromedio: Optional[float]
 
 class BigProductoProveedorResponse(BaseModel):
     IdProducto: int
@@ -42,6 +50,17 @@ class BigProductoProveedorResponse(BaseModel):
     FechaOferta: Optional[datetime]
     FechaPrecio: Optional[datetime]
     Producto: ProductoBase
+
+class ProductoPrecioProveedorResponse(BaseModel):
+    IdProveedor: int
+    NombreProveedor: str
+    UrlImagenProveedor: Optional[str]
+    Precio: Decimal
+    PrecioOferta: Optional[Decimal]
+    DescripcionOferta: Optional[str]
+    FechaOferta: Optional[datetime]
+    FechaPrecio: Optional[datetime]
+
 
 class ProductoResponse(ProductoBase):
     IdProducto: int 
