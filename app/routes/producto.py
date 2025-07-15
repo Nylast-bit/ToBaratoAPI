@@ -10,6 +10,7 @@ from app.schemas.productoproveedor import ProductoProveedorResponse
 from app.database import AsyncSessionLocal
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
+from sqlalchemy import func, asc
 from datetime import datetime
 from sqlalchemy import delete  
 
@@ -92,23 +93,31 @@ async def obtener_productos(db: AsyncSession = Depends(get_db)):
 # Obtener todos los productos   
 @router.get("/productoavg", response_model=List[ProductoConPrecioPromedioResponse])
 async def obtener_productos(db: AsyncSession = Depends(get_db)):
-    # Obtener todos los productos
-    result = await db.execute(select(Producto))
-    productos = result.scalars().all()
-
-    if not productos:
-        raise HTTPException(status_code=404, detail="No se encontraron productos")
-    
-    respuesta = []
-    
-    for producto in productos:
-        # Obtener el promedio de precios desde ProductoProveedor
-        precio_result = await db.execute(
-            select(func.avg(ProductoProveedor.Precio))
-            .where(ProductoProveedor.IdProducto == producto.IdProducto)
+    # Subconsulta: promedio de precios por producto
+    subquery = (
+        select(
+            ProductoProveedor.IdProducto,
+            func.avg(ProductoProveedor.Precio).label("precio_promedio")
         )
-        precio_promedio = precio_result.scalar()
-        
+        .group_by(ProductoProveedor.IdProducto)
+        .subquery()
+    )
+
+    # Consulta principal: unir Producto con promedio, ordenar por precio_promedio ascendente
+    stmt = (
+        select(
+            Producto,
+            subquery.c.precio_promedio
+        )
+        .outerjoin(subquery, Producto.IdProducto == subquery.c.IdProducto)
+        .order_by(asc(subquery.c.precio_promedio))
+    )
+
+    result = await db.execute(stmt)
+    filas = result.all()
+
+    respuesta = []
+    for producto, precio_promedio in filas:
         respuesta.append(ProductoConPrecioPromedioResponse(
             IdProducto=producto.IdProducto,
             IdCategoria=producto.IdCategoria,
@@ -119,7 +128,7 @@ async def obtener_productos(db: AsyncSession = Depends(get_db)):
             FechaCreacion=producto.FechaCreacion,
             PrecioPromedio=float(precio_promedio) if precio_promedio is not None else None
         ))
-    
+
     return respuesta
 
 
